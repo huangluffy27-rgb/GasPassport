@@ -13,6 +13,24 @@
 - **三个数字**：64 人空投省 28.3%（扩到 1,000 人是 30.9%）；部署费降 82.3%；1 万地址在测试网费率下只省 1.8 美元，这个数不夸大。
 - **证据**：1,536 条 Monad 原生采样、12 笔真实交易，明细见 [链上实测总结](docs/链上实测总结.md)。
 
+## 产品形态：原型与 API
+
+当前仓库是可跑的原型：在线 dApp（两个对照合约）、采样脚本、报告。**HTTP API 尚未上线**，但接口契约先定下来，客户可以按这个形态接入。
+
+```http
+POST /v1/deploy-budget
+{ "chainId": 10143, "bytecode": "0x...", "constructorArgs": "0x..." }
+→ { "limit99": 183522, "limit999": 242268, "certified": true, "codeHash": "0x..." }
+
+POST /v1/budget
+{ "chainId": 10143, "artifact": { ... }, "function": "airdrop", "inputRange": [1, 64], "coverage": 0.99 }
+→ { "buckets": [...], "support": [1, 64], "coverage": 0.99, "samples": 1536, "certificate": { ... } }
+```
+
+- 导出的 `gas-budget.json` 已带 `schemaVersion / chainId / method / support / coverage / certified / extrapolated` 字段，可直接入库；
+- 认证只覆盖 `support` 区间，超出标 `extrapolated`，不冒充认证；
+- 目前只能跑仓库内两个对照合约；接自己的合约需要改采样脚本的 artifacts 路径，API 版会自动解析 artifact。
+
 一个真实例子，32 人空投：
 
 - 散列映射要 952,286 gas，页对齐只要 711,130，省 **25%**

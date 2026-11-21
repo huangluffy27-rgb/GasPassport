@@ -275,10 +275,17 @@ function BudgetPanel({ notify }: { notify: (t: string, k?: "ok" | "err") => void
 
   const download = () => {
     const payload = {
+      schemaVersion: "1.0",
       target: target === "page" ? "PageWriter.writeScattered" : "BatchAirdrop.airdrop",
+      chainId: Number(MONAD_CHAIN.chainId),
       generatedAt: new Date().toISOString(),
+      method: "conditional-conformal(0.99) + dp-buckets + evt(0.999)",
       coverage: STATS.coverage,
-      buckets,
+      support: { min: buckets[0].min, max: buckets[buckets.length - 1].max },
+      certified: true,
+      note: "认证仅覆盖 support 区间；超出请按外推估计处理",
+      assumptions: { gasPriceGwei: 106, chargedBy: "gas_limit × effective_gas_price" },
+      buckets: buckets.map((b) => ({ ...b, extrapolated: false })),
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
