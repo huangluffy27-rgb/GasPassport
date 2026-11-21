@@ -1,9 +1,9 @@
 {
-  "name": "chaosgas",
+  "name": "gaspassport",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "ChaosGas —— Monad 合约 gas limit 统计体检",
+  "description": "gaspassport —— Monad 合约 gas limit 统计体检",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
@@ -14,3 +14,4 @@
     "typescript": "^5.7.0"
   }
 }
+

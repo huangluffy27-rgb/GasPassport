@@ -74,7 +74,7 @@ export default function App() {
         {tab === "align" && <AlignPanel wallet={wallet} notify={toast} />}
       </main>
       <footer className="footer">
-        <span>ChaosGas · Monad Blitz@广州</span>
+        <span>GasPassport · Monad Blitz@广州</span>
         <div>
           <a href="./report.html">完整报告</a>
           <a href="https://github.com/huangluffy27-rgb/Monad_Product" target="_blank" rel="noreferrer">
@@ -107,7 +107,7 @@ function Header({ tab, setTab, wallet }: { tab: Tab; setTab: (t: Tab) => void; w
       <div className="brand">
         <div className="mark">CG</div>
         <div>
-          <div className="name">ChaosGas</div>
+          <div className="name">GasPassport</div>
           <div className="tag">Monad gas 预算护照</div>
         </div>
       </div>

@@ -154,7 +154,7 @@ export function renderReport(
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>ChaosGas 报告 · Monad gas limit 体检</title>
+<title>GasPassport 报告 · Monad gas limit 体检</title>
 <style>
   :root { --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --bg:#f8fafc; --accent:#2563eb; }
   * { box-sizing: border-box; }
@@ -184,7 +184,7 @@ export function renderReport(
 </head>
 <body>
 <div class="wrap">
-  <h1>ChaosGas 报告</h1>
+  <h1>GasPassport 报告</h1>
   <p class="sub">Monad 合约函数的 gas limit 体检 · 生成于 ${generatedAt} · 1,536 条测试网原生采样</p>
 
   <div class="cards">
@@ -208,7 +208,7 @@ export function renderReport(
   <h2>为什么不是直接调 eth_estimateGas？</h2>
   <p class="sub">我们自己的真实交易校准证明：<code>estimateGas</code> 就是最小可行 limit。所以这个工具不跟它抢「单笔预估」，只补它覆盖不到的四类场景。</p>
   <table>
-    <thead><tr><th>场景</th><th>每次调用 eth_estimateGas</th><th>ChaosGas 预算认证表</th></tr></thead>
+    <thead><tr><th>场景</th><th>每次调用 eth_estimateGas</th><th>GasPassport 预算认证表</th></tr></thead>
     <tbody>
       <tr><td>部署前 / CI 审计</td><td>合约还没上链，调不了</td><td>给定函数与输入族，部署前产出上限</td></tr>
       <tr><td>批量 / 代付 / AA</td><td>要逐笔模拟，延迟叠加</td><td>一次认证，运行时查表 0 次 RPC</td></tr>
@@ -414,7 +414,7 @@ export function renderReport(
   <p class="note">最坏情况出现在 count=${insight.countMax}：跨页写入 ${insight.worstCase.pagesScattered} 页，对比同页 ${insight.worstCase.pagesContiguous} 页。
   峰值 gas 由输入结构（写入次数）和存储布局（页内/跨页）共同决定，均匀采样不保证碰到，所以先做最坏情况搜索再谈分布。分布与认证上限全部来自测试网原生 estimateGas，不再混用本地 gas。</p>
 
-  <footer>ChaosGas · 条件共形预测 + 极值理论 + 低差异采样 · 输入可复现</footer>
+  <footer>GasPassport · 条件共形预测 + 极值理论 + 低差异采样 · 输入可复现</footer>
 </div>
 </body>
 </html>`;

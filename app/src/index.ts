@@ -20,7 +20,7 @@ import { autoThreshold, layoutAdvice, ratioConformal, sequentialCertify } from "
 function main(): void {
   const args = process.argv.slice(2);
   if (args.includes("--version") || args.includes("-v")) {
-    console.log("chaosgas 0.1.0");
+    console.log("gaspassport 0.1.0");
     return;
   }
 
@@ -94,7 +94,7 @@ function main(): void {
   const docsPath = resolve(fileURLToPath(new URL("../../docs/report.html", import.meta.url)));
   writeFileSync(docsPath, html, "utf8");
 
-  console.log("ChaosGas · Monad 合约 gas limit 体检");
+  console.log("GasPassport · Monad 合约 gas limit 体检");
   console.log("");
   for (const s of stats) {
     console.log(
@@ -121,4 +121,5 @@ function main(): void {
 }
 
 main();
+
 

@@ -1,4 +1,4 @@
-# ChaosGas
+# GasPassport
 
 给 Monad 合约的每个函数算一张**有覆盖保证的 gas 预算表**：按输入规模分桶，每桶一个认证上限。
 
@@ -6,7 +6,7 @@
 
 它不跟 `eth_estimateGas` 抢「单笔预估」——我们自己的真实交易校准证明 `estimateGas` 就是最小可行 limit。它补的是 `estimateGas` 覆盖不到的场景：
 
-| 场景 | 每次调 `eth_estimateGas` | ChaosGas 预算表 |
+| 场景 | 每次调 `eth_estimateGas` | GasPassport 预算表 |
 |---|---|---|
 | 部署前 / CI 审计 | 合约还没上链，调不了 | 给定函数与输入族，部署前产出上限 |
 | 批量 / 代付 / AA | 逐笔模拟，延迟叠加 | 一次认证，运行时查表 0 次 RPC |
@@ -127,7 +127,7 @@
 ```bash
 # 1. 编译与本地对照实验（首次需 forge install foundry-rs/forge-std）
 cd contracts
-forge test --match-path test/ChaosGas.t.sol
+forge test --match-path test/GasPassport.t.sol
 
 # 2. 测试网原生采样（需要 viem）
 cd ..
@@ -153,7 +153,7 @@ contracts/
 ├── src/PageWriter.sol      # 同页连续写 vs 跨页散布写
 ├── src/BatchAirdrop.sol    # 批量空投，散列余额槽
 ├── src/AlignedAirdrop.sol  # 页对齐版本：packed Entry[] 追加记录
-├── test/ChaosGas.t.sol     # 页成本对照，输出 page_cost.csv
+├── test/GasPassport.t.sol     # 页成本对照，输出 page_cost.csv
 └── reports/                # 测试网采样、页成本、校准数据
 app/
 ├── src/analyze.ts          # 分位数、收敛、页成本

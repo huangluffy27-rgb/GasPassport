@@ -4,9 +4,9 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {PageWriter} from "../src/PageWriter.sol";
 
-/// @title ChaosGasCampaign
+/// @title GasPassportCampaign
 /// @notice 页成本对照：同样的写入次数，同页 vs 跨页；页数来自 vm.record / vm.accesses。
-contract ChaosGasCampaign is Test {
+contract GasPassportCampaign is Test {
     string internal constant PAGE_COST = "reports/page_cost.csv";
 
     function setUp() public {
@@ -69,3 +69,4 @@ contract ChaosGasCampaign is Test {
         return n;
     }
 }
+
