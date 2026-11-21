@@ -250,8 +250,10 @@ contracts/
 ├── src/PageWriter.sol      # 同页连续写 vs 跨页散布写
 ├── src/BatchAirdrop.sol    # 批量空投，散列余额槽
 ├── src/AlignedAirdrop.sol  # 页对齐版本：packed Entry[] 追加记录
+├── src/ClaimAirdrop.sol    # keccak Merkle + 位图领取（对照）
+├── src/ClaimManySHA.sol    # SHA-256 + 批量领取（探索）
 ├── test/GasPassport.t.sol     # 页成本对照，输出 page_cost.csv
-└── reports/                # 测试网采样、页成本、校准数据
+└── reports/                # 测试网采样、页成本、校准、领取制数据
 app/
 ├── src/analyze.ts          # 分位数、收敛、页成本
 ├── src/conformal.ts        # 条件共形预测 + EVT 外推
@@ -259,11 +261,16 @@ app/
 ├── src/report.ts           # 自包含 HTML 报告
 └── src/index.ts            # CLI
 scripts/
+├── prebudget_api.mjs       # 本地预算 API + CLI（deploy / budget / batch）
+├── budget_core.mjs         # 预算核心：state override + 共形分位数 + 拆笔
 ├── sample_testnet.mjs      # 测试网原生采样（state override）
 ├── measure_monad_page_cost.ps1
 ├── measure_aligned.mjs     # 页对齐 vs 散列映射对比
+├── measure_claim.mjs       # keccak 领取制实测
+├── measure_claim_many.mjs  # SHA-256 批量领取实测
 ├── gen_dapp_contracts.mjs  # 从 Foundry 产物生成 dApp ABI/字节码
 └── calibrate_receipts.mjs  # 真实交易校准
+.github/workflows/gas-budget.yml  # CI 模板：手动触发，产出 gas-budget.json
 dapp/
 ├── src/App.tsx             # 概览 / 预算表 / 页对齐实测
 ├── src/useWallet.ts        # EIP-1193 钱包、链切换、交易回执

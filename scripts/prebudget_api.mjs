@@ -106,7 +106,8 @@ async function startServer() {
     console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
     try {
       if (req.method === "GET" && req.url === "/health") return send(res, 200, { ok: true });
-      if (req.method === "POST" && API_KEY && req.headers["x-api-key"] !== API_KEY) {
+      const needsAuth = req.method === "POST" || req.url === "/v1/usage";
+      if (needsAuth && API_KEY && req.headers["x-api-key"] !== API_KEY) {
         return send(res, 401, { error: "unauthorized" });
       }
       if (req.method === "GET" && req.url === "/v1/usage") {
@@ -117,7 +118,9 @@ async function startServer() {
           remaining: QUOTA ? Math.max(0, QUOTA - usage.count) : null,
         });
       }
-      if (req.method === "POST") {
+      const apiPost =
+        req.method === "POST" && ["/v1/batch-plan", "/v1/deploy-budget", "/v1/budget"].includes(req.url);
+      if (apiPost) {
         if (QUOTA > 0 && usage.count >= QUOTA) {
           return send(res, 429, { error: "quota exceeded", quota: QUOTA, used: usage.count });
         }
