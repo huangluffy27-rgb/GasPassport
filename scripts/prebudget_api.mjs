@@ -67,6 +67,7 @@ async function runCli() {
     max: Number(argOf("max", 64)),
     step: Number(argOf("step", 1)),
     samplesPerInput: Number(argOf("samples", 1)),
+    varyIndex: argOf("vary") === undefined ? undefined : Number(argOf("vary")),
   });
   console.log(JSON.stringify(out, null, 2));
   return true;
@@ -148,6 +149,7 @@ async function startServer() {
             max: body.max ?? 64,
             step: body.step ?? 1,
             samplesPerInput: body.samplesPerInput ?? 1,
+            varyIndex: body.varyIndex,
           }),
         );
       }
