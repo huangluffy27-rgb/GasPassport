@@ -1,0 +1,54 @@
+{
+  "address": "0xDe11D5b266c745967187D2Cc06da8FB51875fcD7",
+  "contract": "0x279f31c8c3fbfc9c8300e0084177bf197954e34b",
+  "rows": [
+    {
+      "fn": "writeContiguous",
+      "count": 32,
+      "estimate": 607344,
+      "limit": 589124,
+      "status": "reverted",
+      "gasUsed": 589124
+    },
+    {
+      "fn": "writeContiguous",
+      "count": 32,
+      "estimate": 607344,
+      "limit": 607344,
+      "status": "success",
+      "gasUsed": 607344
+    },
+    {
+      "fn": "writeContiguous",
+      "count": 32,
+      "estimate": 607344,
+      "limit": 625564,
+      "status": "success",
+      "gasUsed": 625564
+    },
+    {
+      "fn": "writeScattered",
+      "count": 32,
+      "estimate": 910526,
+      "limit": 883210,
+      "status": "reverted",
+      "gasUsed": 883210
+    },
+    {
+      "fn": "writeScattered",
+      "count": 32,
+      "estimate": 910526,
+      "limit": 910526,
+      "status": "success",
+      "gasUsed": 910526
+    },
+    {
+      "fn": "writeScattered",
+      "count": 32,
+      "estimate": 910526,
+      "limit": 937842,
+      "status": "success",
+      "gasUsed": 937842
+    }
+  ]
+}

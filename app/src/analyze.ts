@@ -76,6 +76,32 @@ export function readTestnetPageCost(dir: string): TestnetRow[] {
   }));
 }
 
+export type CalibrationRow = {
+  fn: string;
+  count: number;
+  estimate: number;
+  limit: number;
+  status: string;
+  gasUsed: number;
+};
+
+export type Calibration = { contract: string; rows: CalibrationRow[] };
+
+export function readCalibration(dir: string): Calibration {
+  const raw = JSON.parse(readFileSync(join(dir, "monad_receipt_calibration.json"), "utf8"));
+  return {
+    contract: raw.contract,
+    rows: raw.rows.map((r: CalibrationRow) => ({
+      fn: r.fn,
+      count: r.count,
+      estimate: r.estimate,
+      limit: r.limit,
+      status: r.status,
+      gasUsed: r.gasUsed,
+    })),
+  };
+}
+
 export function readAirdropSamples(dir: string): Sample[] {
   return readSamples(dir, "airdrop_samples.csv");
 }

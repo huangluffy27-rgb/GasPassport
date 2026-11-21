@@ -28,6 +28,8 @@ Monad 上有两条和以太坊不同的成本规则：
 
 页成本在 **Monad 测试网**上用 `eth_estimateGas` + 状态覆盖实测（不发交易、不需要测试币，脚本见 [scripts/measure_monad_page_cost.ps1](scripts/measure_monad_page_cost.ps1)）。每多一页约 **10,975 gas**，比按文档估的 8,000 高约 37%。
 
+随后又用**真实交易**校准了一次（[scripts/calibrate_receipts.mjs](scripts/calibrate_receipts.mjs)）：部署 PageWriter 后发 6 笔交易，`0.97× estimateGas` 全部回滚、`1.00×` 全部成功——**estimateGas 就是最小可行 limit**。回执的 `gasUsed` 恒等于 `gasLimit`（Monad 按 limit 扣费），所以真实成本只能靠二分试探，不能直接从回执读。
+
 `PageWriter`，采样 512 / 采样器：
 
 | 指标 | 数值 |
@@ -67,6 +69,13 @@ node dist/index.js
 
 报告输出到 `contracts/reports/report.html`。
 
+测试网实测（需要 Foundry；校准脚本额外需要 `npm i viem --no-save`）：
+
+```bash
+powershell -File scripts\measure_monad_page_cost.ps1
+node scripts\calibrate_receipts.mjs
+```
+
 ## 仓库结构
 
 ```
@@ -84,7 +93,7 @@ app/
 
 ## 口径与限制
 
-- 页成本来自 Monad 测试网 `eth_estimateGas` 实测，但 **estimateGas ≠ 实际扣费**；正式接入时应再用真实交易回执校准。
+- 页成本来自 Monad 测试网实测；`eth_estimateGas` 已被真实交易验证为最小可行 limit，但页增量在不同状态预热组合下会有约 ±3% 波动。
 - 页数来自 `vm.record` / `vm.accesses` 的真实写入轨迹，但 `vm.accesses` 只覆盖当前交易；跨交易的状态预热不在统计范围内。
 - 经验分位数依赖样本量：N=512 时 max 只覆盖约 99.8%，不要把它当成 99.99% 的保证。
 

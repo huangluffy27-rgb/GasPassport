@@ -1,4 +1,4 @@
-import type { AirdropInsight, Insight, PageRow, SamplerStats, TestnetRow } from "./analyze.js";
+import type { AirdropInsight, Calibration, Insight, PageRow, SamplerStats, TestnetRow } from "./analyze.js";
 import { PAGE_EXTRA } from "./analyze.js";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
@@ -96,6 +96,7 @@ export function renderReport(
   stats: SamplerStats[],
   pages: PageRow[],
   testnet: TestnetRow[],
+  calibration: Calibration,
   insight: Insight,
   airStats: SamplerStats[],
   airInsight: AirdropInsight,
@@ -202,6 +203,25 @@ export function renderReport(
     <tbody>${pageRows}</tbody>
   </table>
   <p class="note">口径：这一节全部来自 Monad 测试网 <code>eth_estimateGas</code> 实测。测量方式是把 PageWriter 的运行时字节码通过状态覆盖放到测试网地址上，模拟调用，不发交易、不需要测试币。n=8/16/32/64 的每页增量稳定在约 10,975 gas，比我们最初按文档估的 8,000 高约 37%。</p>
+
+  <h2>真实交易校准：estimateGas 就是最小可行 limit</h2>
+  <table>
+    <thead><tr><th>函数</th><th>写入次数</th><th>试探 limit</th><th>结果</th><th>回执 gasUsed</th></tr></thead>
+    <tbody>
+      ${calibration.rows
+        .map(
+          (r) => `<tr>
+        <td>${r.fn}</td>
+        <td>${r.count}</td>
+        <td>${fmt(r.limit)}</td>
+        <td>${r.status === "success" ? "成功" : "回滚"}</td>
+        <td>${fmt(r.gasUsed)}</td>
+      </tr>`,
+        )
+        .join("")}
+    </tbody>
+  </table>
+  <p class="note">在测试网真实部署 <code>${calibration.contract.slice(0, 10)}…</code> 并发起 6 笔交易：0.97× estimateGas 全部回滚，1.00× 全部成功——<strong>estimateGas 就是最小可行 limit</strong>。回执的 <code>gasUsed</code> 恒等于 <code>gasLimit</code>（Monad 按 limit 扣费），所以真实成本只能靠二分试探，不能直接从回执读。散列那组因为部署后先跑了同页调用、有两个槽已预热，303,182 的差额是下限；冷状态估计的干净差值是 340,274（约 10,976 / 页）。</p>
 
   <h2>采样收敛：IET 比均匀随机更快贴近真值</h2>
   <p class="sub">灰=同页，蓝=跨页；线色：<span style="color:#dc2626">uniform</span> / <span style="color:#2563eb">iet</span> / <span style="color:#059669">logistic</span></p>
