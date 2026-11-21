@@ -14,6 +14,7 @@ export function useWallet() {
   const [chainId, setChainId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorAt, setErrorAt] = useState(0);
   const ethRef = useRef<Eip1193 | null>(null);
 
   const eth = () => {
@@ -67,6 +68,7 @@ export function useWallet() {
       setChainId((await e.request({ method: "eth_chainId" })) as string);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      setErrorAt(Date.now());
     } finally {
       setBusy(false);
     }
@@ -105,5 +107,5 @@ export function useWallet() {
     [address, ensureChain],
   );
 
-  return { address, chainId, busy, error, connect, disconnect, sendTransaction, wrongChain: !!address && chainId !== MONAD_CHAIN.chainId };
+  return { address, chainId, busy, error, errorAt, connect, disconnect, sendTransaction, wrongChain: !!address && chainId !== MONAD_CHAIN.chainId };
 }

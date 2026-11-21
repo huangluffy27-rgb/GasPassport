@@ -60,6 +60,10 @@ export default function App() {
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4200);
   };
 
+  useEffect(() => {
+    if (wallet.error) toast(wallet.error, "err");
+  }, [wallet.error, wallet.errorAt]);
+
   return (
     <div className="app">
       <Header tab={tab} setTab={setTab} wallet={wallet} />
