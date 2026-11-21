@@ -13,9 +13,15 @@
 - **三个数字**：64 人空投省 28.3%（扩到 1,000 人是 30.9%）；部署费降 82.3%；1 万地址在测试网费率下只省 1.8 美元，这个数不夸大。
 - **证据**：1,536 条 Monad 原生采样、12 笔真实交易，明细见 [链上实测总结](docs/链上实测总结.md)。
 
-## 产品形态：原型与 API
+## 产品形态：本地 API（已可跑）
 
-当前仓库是可跑的原型：在线 dApp（两个对照合约）、采样脚本、报告。**HTTP API 尚未上线**，但接口契约先定下来，客户可以按这个形态接入。
+```bash
+node scripts/prebudget_api.mjs          # 本地 API → http://127.0.0.1:8787
+node scripts/prebudget_api.mjs --artifact contracts/out/BatchAirdrop.sol/BatchAirdrop.json \
+  --function airdrop --min 1 --max 64 --step 8      # CLI 模式
+```
+
+托管服务尚未上线；本地 API 与 CLI 已可跑，需要 Node 与 `viem`（仓库根目录已装）。在线 dApp 仍是静态原型，只内置两个对照合约。
 
 ```http
 POST /v1/deploy-budget

@@ -1,0 +1,113 @@
+// GasPassport 本地 API + CLI。
+// 服务：node scripts/prebudget_api.mjs                      → http://127.0.0.1:8787
+// CLI ：node scripts/prebudget_api.mjs --artifact out/X.json --function airdrop --min 1 --max 64 --step 8
+// 部署：node scripts/prebudget_api.mjs --deploy out/X.json --args 0x
+import { readFileSync } from "node:fs";
+import http from "node:http";
+import { deployBudget, functionBudget } from "../lib/budget.mjs";
+
+const PORT = Number(process.env.PORT ?? 8787);
+
+function readArtifact(path) {
+  return JSON.parse(readFileSync(path, "utf8"));
+}
+
+const argOf = (name, fallback) => {
+  const i = process.argv.indexOf(`--${name}`);
+  return i >= 0 ? process.argv[i + 1] : fallback;
+};
+
+async function runCli() {
+  const artifactPath = argOf("artifact");
+  const deployPath = argOf("deploy");
+  if (deployPath) {
+    const artifact = readArtifact(deployPath);
+    const bytecode = artifact.bytecode?.object ?? artifact.bytecode;
+    const args = argOf("args", "0x");
+    console.log(JSON.stringify(await deployBudget({ bytecode, constructorArgs: args }), null, 2));
+    return true;
+  }
+  if (!artifactPath) return false;
+  const artifact = readArtifact(artifactPath);
+  const out = await functionBudget({
+    artifact,
+    functionName: argOf("function", "airdrop"),
+    min: Number(argOf("min", 1)),
+    max: Number(argOf("max", 64)),
+    step: Number(argOf("step", 1)),
+    samplesPerInput: Number(argOf("samples", 1)),
+  });
+  console.log(JSON.stringify(out, null, 2));
+  return true;
+}
+
+function send(res, code, body) {
+  res.writeHead(code, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+  });
+  res.end(JSON.stringify(body));
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let raw = "";
+    req.on("data", (chunk) => {
+      raw += chunk;
+      if (raw.length > 8 * 1024 * 1024) reject(new Error("body too large"));
+    });
+    req.on("end", () => {
+      try {
+        resolve(raw ? JSON.parse(raw) : {});
+      } catch {
+        reject(new Error("invalid JSON"));
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
+async function startServer() {
+  const server = http.createServer(async (req, res) => {
+    if (req.method === "OPTIONS") return send(res, 204, {});
+    try {
+      if (req.method === "GET" && req.url === "/health") return send(res, 200, { ok: true });
+      if (req.method === "POST" && req.url === "/v1/deploy-budget") {
+        const body = await readBody(req);
+        const bytecode = body.bytecode ?? body.artifact?.bytecode?.object ?? body.artifact?.bytecode;
+        if (!bytecode) return send(res, 400, { error: "缺少 bytecode" });
+        return send(res, 200, await deployBudget({ bytecode, constructorArgs: body.constructorArgs ?? "0x" }));
+      }
+      if (req.method === "POST" && req.url === "/v1/budget") {
+        const body = await readBody(req);
+        if (!body.artifact) return send(res, 400, { error: "缺少 artifact" });
+        return send(
+          res,
+          200,
+          await functionBudget({
+            artifact: body.artifact,
+            functionName: body.function ?? "airdrop",
+            min: body.min ?? 1,
+            max: body.max ?? 64,
+            step: body.step ?? 1,
+            samplesPerInput: body.samplesPerInput ?? 1,
+          }),
+        );
+      }
+      send(res, 404, { error: "not found" });
+    } catch (err) {
+      send(res, 500, { error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+  server.listen(PORT, "127.0.0.1", () => {
+    console.log(`GasPassport API: http://127.0.0.1:${PORT}`);
+    console.log(`GET  /health`);
+    console.log(`POST /v1/deploy-budget  { bytecode, constructorArgs? }`);
+    console.log(`POST /v1/budget         { artifact, function, min?, max?, step?, samplesPerInput? }`);
+  });
+}
+
+const handled = await runCli();
+if (!handled) await startServer();
