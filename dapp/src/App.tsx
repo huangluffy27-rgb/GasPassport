@@ -86,7 +86,7 @@ export default function App() {
         <span>GasPassport · Monad Blitz@广州</span>
         <div>
           <a href="./report.html">完整报告</a>
-          <a href="https://github.com/huangluffy27-rgb/Monad_Product" target="_blank" rel="noreferrer">
+          <a href="https://github.com/huangluffy27-rgb/GasPassport" target="_blank" rel="noreferrer">
             GitHub
           </a>
           <a href="https://mojo.devnads.com/projects/446" target="_blank" rel="noreferrer">

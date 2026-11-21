@@ -4,7 +4,7 @@
 
 现在的常见做法是拍一个“3 倍余量”。在 Monad 上这会直接多付钱：gas 按 limit 扣，不退。GasPassport 给的是按输入规模分桶、带 99% 覆盖保证的预算表。
 
-> 在线原型：https://huangluffy27-rgb.github.io/Monad_Product/ —— 连接钱包、查预算表、链上实测页对齐；报告页在 `/report.html`。
+> 在线原型：https://huangluffy27-rgb.github.io/GasPassport/ —— 连接钱包、查预算表、链上实测页对齐；报告页在 `/report.html`。
 
 一个真实例子，32 人空投：
 
