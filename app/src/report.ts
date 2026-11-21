@@ -1,6 +1,7 @@
 import type { AirdropInsight, Calibration, Insight, PageRow, SamplerStats, TestnetRow } from "./analyze.js";
 import { PAGE_EXTRA } from "./analyze.js";
 import type { ConfSummary } from "./conformal.js";
+import type { AdvancedSummary } from "./advanced.js";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
@@ -103,6 +104,7 @@ export function renderReport(
   airInsight: AirdropInsight,
   pwConf: ConfSummary,
   airConf: ConfSummary,
+  adv: AdvancedSummary,
   generatedAt: string,
 ): string {
   const worstBucket = pwConf.auto.buckets[pwConf.auto.buckets.length - 1];
@@ -321,6 +323,54 @@ export function renderReport(
     </tbody>
   </table>
   <p class="note">边界只在校准集上选，避免用测试集调参；两个方案的留出覆盖率都在 99% 附近。改善来自把桶宽按 gas 曲线分配，而不是按 2 的幂手切。</p>
+
+  <h2>进阶实验：条件覆盖、自动阈值、顺序停止、布局建议</h2>
+
+  <h3>CV+ 比率共形</h3>
+  <p class="sub">5 折交叉验证得到折外预测，分数取 <code>gas / pred</code>，再把共形分位数作用在比率上。相比分桶常数上限，它随输入规模平滑变化，更接近“给定输入特征”的条件覆盖。</p>
+  <table>
+    <thead><tr><th>目标</th><th>分桶期望上限</th><th>CV+ 期望上限</th><th>留出覆盖</th><th>最差桶内覆盖</th></tr></thead>
+    <tbody>
+      <tr><td>PageWriter</td><td>${fmt(pwConf.autoExpected)}</td><td>${fmt(adv.pw.ratio.expected)}</td><td>${pct(adv.pw.ratio.coverage)}</td><td>${pct(Math.min(...adv.pw.ratio.perBucket.map((b) => b.coverage)))}</td></tr>
+      <tr><td>BatchAirdrop</td><td>${fmt(airConf.autoExpected)}</td><td>${fmt(adv.air.ratio.expected)}</td><td>${pct(adv.air.ratio.coverage)}</td><td>${pct(Math.min(...adv.air.ratio.perBucket.map((b) => b.coverage)))}</td></tr>
+    </tbody>
+  </table>
+
+  <h3>自动阈值（GPD 的 ξ 稳定性）</h3>
+  <p class="sub">在 50%–90% 分位里选 ξ 最接近中位数的阈值，替代手拍 80%。本次两个目标的 ξ 都为负（有界尾），自动阈值与固定 80% 的 99.9% 估计相差不到 1%——结论是：尾部不重时，阈值选择不敏感，外推本身会退化到观测最大值。</p>
+  <table>
+    <thead><tr><th>目标</th><th>选中阈值</th><th>ξ</th><th>99.9%（自动）</th><th>99.9%（固定 80%）</th></tr></thead>
+    <tbody>
+      <tr><td>PageWriter</td><td>${pct(adv.pw.evt.thresholdQ)}</td><td>${adv.pw.evt.xi.toFixed(3)}</td><td>${fmt(adv.pw.evt.q999)}</td><td>${fmt(adv.pw.evt.fixedQ999)}</td></tr>
+      <tr><td>BatchAirdrop</td><td>${pct(adv.air.evt.thresholdQ)}</td><td>${adv.air.evt.xi.toFixed(3)}</td><td>${fmt(adv.air.evt.q999)}</td><td>${fmt(adv.air.evt.fixedQ999)}</td></tr>
+    </tbody>
+  </table>
+
+  <h3>顺序停止</h3>
+  <p class="sub">检查点 16/32/64/128/256，并集校正 α_k = 0.05/((k+1)(k+2))；上限连续两次变化 ≤5% 就停。</p>
+  <table>
+    <thead><tr><th>目标</th><th>停止样本数</th><th>停止时上限</th><th>留出覆盖</th><th>固定 256 上限</th><th>省下的样本</th></tr></thead>
+    <tbody>
+      <tr><td>PageWriter</td><td>${adv.pw.seq.stopN}</td><td>${fmt(adv.pw.seq.stopLimit)}</td><td>${pct(adv.pw.seq.coverage)}</td><td>${fmt(adv.pw.seq.fixedLimit)}</td><td>${pct(1 - adv.pw.seq.stopN / 256)}</td></tr>
+      <tr><td>BatchAirdrop</td><td>${adv.air.seq.stopN}</td><td>${fmt(adv.air.seq.stopLimit)}</td><td>${pct(adv.air.seq.coverage)}</td><td>${fmt(adv.air.seq.fixedLimit)}</td><td>${pct(1 - adv.air.seq.stopN / 256)}</td></tr>
+    </tbody>
+  </table>
+  <p class="note">停止点依赖数据，覆盖保证按“检查点并集”成立；同时要求样本数不少于 1/α−1（99% 时约 99 个），否则 max 的边际覆盖撑不起 99%。这是工程早停准则，不是逐时刻有效的置信序列。</p>
+
+  <h3>页感知布局建议</h3>
+  <table>
+    <thead><tr><th>位置</th><th>现状</th><th>建议</th><th>页数</th><th>gas 变化</th></tr></thead>
+    <tbody>
+      ${adv.layout.items
+        .map(
+          (i) => `<tr><td>${i.contract}</td><td>${i.current}</td><td>${i.suggestion}</td><td>${i.pages}</td><td>${i.gas}</td></tr>`,
+        )
+        .join("")}
+    </tbody>
+  </table>
+  <ul class="sub">
+    ${adv.layout.notes.map((n) => `<li>${n}</li>`).join("")}
+  </ul>
 
   <h2>采样收敛：IET 比均匀随机更快贴近真值</h2>
   <p class="sub">灰=同页，蓝=跨页；线色：<span style="color:#dc2626">uniform</span> / <span style="color:#2563eb">iet</span> / <span style="color:#059669">logistic</span></p>

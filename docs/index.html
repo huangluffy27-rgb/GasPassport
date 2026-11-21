@@ -34,7 +34,7 @@
 <body>
 <div class="wrap">
   <h1>ChaosGas 报告</h1>
-  <p class="sub">Monad 合约函数的 gas limit 体检 · 生成于 2026-11-21 04:50:42 UTC · 1,536 条测试网原生采样</p>
+  <p class="sub">Monad 合约函数的 gas limit 体检 · 生成于 2026-11-21 04:56:21 UTC · 1,536 条测试网原生采样</p>
 
   <div class="cards">
     <div class="card">
@@ -301,6 +301,50 @@
     </tbody>
   </table>
   <p class="note">边界只在校准集上选，避免用测试集调参；两个方案的留出覆盖率都在 99% 附近。改善来自把桶宽按 gas 曲线分配，而不是按 2 的幂手切。</p>
+
+  <h2>进阶实验：条件覆盖、自动阈值、顺序停止、布局建议</h2>
+
+  <h3>CV+ 比率共形</h3>
+  <p class="sub">5 折交叉验证得到折外预测，分数取 <code>gas / pred</code>，再把共形分位数作用在比率上。相比分桶常数上限，它随输入规模平滑变化，更接近“给定输入特征”的条件覆盖。</p>
+  <table>
+    <thead><tr><th>目标</th><th>分桶期望上限</th><th>CV+ 期望上限</th><th>留出覆盖</th><th>最差桶内覆盖</th></tr></thead>
+    <tbody>
+      <tr><td>PageWriter</td><td>1,145,039</td><td>987,210</td><td>100.0%</td><td>100.0%</td></tr>
+      <tr><td>BatchAirdrop</td><td>590,562</td><td>515,967</td><td>100.0%</td><td>100.0%</td></tr>
+    </tbody>
+  </table>
+
+  <h3>自动阈值（GPD 的 ξ 稳定性）</h3>
+  <p class="sub">在 50%–90% 分位里选 ξ 最接近中位数的阈值，替代手拍 80%。本次两个目标的 ξ 都为负（有界尾），自动阈值与固定 80% 的 99.9% 估计相差不到 1%——结论是：尾部不重时，阈值选择不敏感，外推本身会退化到观测最大值。</p>
+  <table>
+    <thead><tr><th>目标</th><th>选中阈值</th><th>ξ</th><th>99.9%（自动）</th><th>99.9%（固定 80%）</th></tr></thead>
+    <tbody>
+      <tr><td>PageWriter</td><td>70.0%</td><td>-1.454</td><td>1,858,092</td><td>1,857,300</td></tr>
+      <tr><td>BatchAirdrop</td><td>85.0%</td><td>-1.282</td><td>968,555</td><td>980,781</td></tr>
+    </tbody>
+  </table>
+
+  <h3>顺序停止</h3>
+  <p class="sub">检查点 16/32/64/128/256，并集校正 α_k = 0.05/((k+1)(k+2))；上限连续两次变化 ≤5% 就停。</p>
+  <table>
+    <thead><tr><th>目标</th><th>停止样本数</th><th>停止时上限</th><th>留出覆盖</th><th>固定 256 上限</th><th>省下的样本</th></tr></thead>
+    <tbody>
+      <tr><td>PageWriter</td><td>128</td><td>1,855,180</td><td>100.0%</td><td>1,855,180</td><td>50.0%</td></tr>
+      <tr><td>BatchAirdrop</td><td>128</td><td>952,298</td><td>99.7%</td><td>952,298</td><td>50.0%</td></tr>
+    </tbody>
+  </table>
+  <p class="note">停止点依赖数据，覆盖保证按“检查点并集”成立；同时要求样本数不少于 1/α−1（99% 时约 99 个），否则 max 的边际覆盖撑不起 99%。这是工程早停准则，不是逐时刻有效的置信序列。</p>
+
+  <h3>页感知布局建议</h3>
+  <table>
+    <thead><tr><th>位置</th><th>现状</th><th>建议</th><th>页数</th><th>gas 变化</th></tr></thead>
+    <tbody>
+      <tr><td>PageWriter.writeScattered</td><td>_slots[i * 128]：每次落到新页，64 次写 = 64 页</td><td>改成连续槽 _slots[i] 或一个 packed struct，64 次写落在 1 页</td><td>64 → 1</td><td>1,855,180 → 1,163,725（−37%；相对 64 页基线省 691,455）</td></tr><tr><td>BatchAirdrop.airdrop</td><td>mapping(address => uint256)：每个地址的槽由 keccak 散列，约一槽一页</td><td>改成「累计 Merkle 根 + 用户自取」：每批只写 1 个根，领取时再写余额</td><td>32 → 1</td><td>952,311 → 约 60k（写入端 −90%+，代价是每用户多一次领取交易）</td></tr><tr><td>通用热状态</td><td>常一起访问的变量分散在不同合约 / 不同映射</td><td>按 128 槽（4KB）对齐热变量；把同一次调用必读写的字段放进同一页</td><td>k → 1..2</td><td>每减少一页省 10,975 gas；64 页场景下 −59.4%</td></tr>
+    </tbody>
+  </table>
+  <ul class="sub">
+    <li>128 槽 × 32B = 4KB，与 OS 页 / SSD 页 / NVMe 随机读同粒度。</li><li>页对齐同时降低 gas 与状态 I/O：64 页散写每次调用触达 256KB，对齐后 4KB。</li><li>改映射为 Merkle 根会改变业务语义，属于产品决策，不是纯优化。</li>
+  </ul>
 
   <h2>采样收敛：IET 比均匀随机更快贴近真值</h2>
   <p class="sub">灰=同页，蓝=跨页；线色：<span style="color:#dc2626">uniform</span> / <span style="color:#2563eb">iet</span> / <span style="color:#059669">logistic</span></p>

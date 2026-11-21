@@ -15,6 +15,7 @@ import {
 } from "./analyze.js";
 import { renderReport } from "./report.js";
 import { summarizeTarget } from "./conformal.js";
+import { autoThreshold, layoutAdvice, ratioConformal, sequentialCertify } from "./advanced.js";
 
 function main(): void {
   const args = process.argv.slice(2);
@@ -53,6 +54,23 @@ function main(): void {
   const pwConf = summarizeTarget("PageWriter", confRows);
   const airConf = summarizeTarget("BatchAirdrop", confRows);
 
+  const pwRows = confRows.filter((r) => r.target === "PageWriter");
+  const airRows = confRows.filter((r) => r.target === "BatchAirdrop");
+  const calOf = (rows: typeof confRows) => rows.filter((r) => r.iter % 2 === 0).map((r) => r.gas);
+  const adv = {
+    pw: {
+      ratio: ratioConformal(pwRows),
+      evt: autoThreshold(calOf(pwRows)),
+      seq: sequentialCertify(pwRows),
+    },
+    air: {
+      ratio: ratioConformal(airRows),
+      evt: autoThreshold(calOf(airRows)),
+      seq: sequentialCertify(airRows),
+    },
+    layout: layoutAdvice(),
+  };
+
   const now = new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC";
   const html = renderReport(
     stats,
@@ -64,6 +82,7 @@ function main(): void {
     airInsight,
     pwConf,
     airConf,
+    adv,
     now,
   );
   const outPath = resolve(dir, "report.html");
@@ -90,7 +109,10 @@ function main(): void {
     `批量空投：数据驱动 ${airConf.auto.buckets[airConf.auto.buckets.length - 1].limit}，期望上限 ${Math.round(airConf.autoExpected)}（固定桶 ${Math.round(airConf.fixedExpected)}）`,
   );
   console.log(
-    `PageWriter：数据驱动 ${pwConf.auto.buckets[pwConf.auto.buckets.length - 1].limit}，期望上限 ${Math.round(pwConf.autoExpected)}（固定桶 ${Math.round(pwConf.fixedExpected)}）`,
+    `顺序停止：PageWriter 在 ${adv.pw.seq.stopN} 个样本停止，覆盖 ${(adv.pw.seq.coverage * 100).toFixed(1)}%；固定 256 上限 ${adv.pw.seq.fixedLimit}`,
+  );
+  console.log(
+    `CV+ 比率共形：PageWriter 期望上限 ${Math.round(adv.pw.ratio.expected)}（分桶 ${Math.round(pwConf.autoExpected)}），覆盖 ${(adv.pw.ratio.coverage * 100).toFixed(1)}%`,
   );
   console.log("");
   console.log(`报告：${outPath}`);
