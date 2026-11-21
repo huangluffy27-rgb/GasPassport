@@ -92,8 +92,24 @@
 | 位置 | 建议 | 页数 | gas 变化 |
 |---|---|---|---|
 | PageWriter.writeScattered | `_slots[i*128]` → `_slots[i]` | 64 → 1 | 1,855,180 → 1,163,725（−37%） |
-| BatchAirdrop.airdrop | 映射 → packed `Entry[]` 追加记录（已实现 `AlignedAirdrop`） | 32 → 1 | 952,298 → 711,142（−25.3%） |
+| BatchAirdrop.airdrop | 映射 → packed `Entry[]` 追加记录（已实现 `AlignedAirdrop`） | 32 → 1 | 952,298 → 711,142（−25.3%）；merkle 变体见下，Monad 上更贵 |
 | 通用热状态 | 按 128 槽对齐同一次调用必读写的字段 | k → 1..2 | 每少一页省 10,975 |
+
+**三档布局，按语义代价排序**（64 人）：
+
+| 档 | 做法 | 成本 | 适用 |
+|---|---|---|---|
+| ① push + 页对齐（已实现） | 散列映射 → packed `Entry[]` | 部署 183,522 + 空投 1,349,065 = **1,532,587** | 需要链上按地址查余额；Monad 上最便宜 |
+| ② pull + Merkle + 位图（`ClaimAirdrop`） | 只存根与领取位图，用户自领 | 团队 310,298；用户 3,181,103；合计 **3,491,401** | 团队不愿逐地址写；但 Monad 上总成本更高 |
+| ③ immutable + SSTORE2 | 名单写进字节码 | 未实测（按 200 gas/字节估算约 13 万） | 一次性、只读名单 |
+
+**为什么领取制在 Monad 上反而更贵**（[`ClaimAirdrop`](contracts/src/ClaimAirdrop.sol)，[实测脚本](scripts/measure_claim.mjs)，[CSV](contracts/reports/claim_airdrop.csv)）：
+
+- 一次领取 49,432 gas（首位 66,887）；反推每次 `keccak256` 约 5 千 gas，6 层证明 ≈ 3 万，再加两次冷 SLOAD 16,200 与位图写入；
+- 同样 64 人，push + 页对齐合计 153 万，领取制合计 349 万，贵 **2.3×**；
+- 所以 Solana 上“状态压缩便宜 1000×”的经验不能直接搬：那边哈希便宜、账户存储贵；Monad 把哈希重定价了。
+
+**外部趋势**：以太坊 Glamsterdam 的 [EIP-8037](https://www.tryethernal.com/blog/eip-8037-multidimensional-gas-metering) 把状态创建按 1,530 gas/字节单独计价（新槽约 9.8 万状态费），Monad 的 MIP-8 `STATE_GROWTH 17,000` 是同一方向——状态创建只会更贵，所以“少建槽”的布局建议长期有效。
 
 页对齐实测（测试网 estimateGas）：
 
