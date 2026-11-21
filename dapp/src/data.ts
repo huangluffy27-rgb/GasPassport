@@ -31,6 +31,7 @@ export const ALIGNED: AlignedRow[] = [
   { n: 16, mapping: 487_809, aligned: 381_264, diff: 106_545, pct: 21.8 },
   { n: 32, mapping: 952_298, aligned: 711_142, diff: 241_156, pct: 25.3 },
   { n: 64, mapping: 1_881_217, aligned: 1_349_065, diff: 532_152, pct: 28.3 },
+  { n: 1000, mapping: 29_053_012, aligned: 20_085_447, diff: 8_967_565, pct: 30.9 },
 ];
 
 export type PageCostRow = { n: number; contiguous: number; scattered: number };

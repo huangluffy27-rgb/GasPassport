@@ -174,7 +174,12 @@ function Overview({ setTab }: { setTab: (t: Tab) => void }) {
         <Stat k="覆盖保证" v="99%" n="条件共形，留出集实测 100%" />
         <Stat k="每页增量" v={fmt(STATS.pageExtra)} n="Monad 测试网实测 gas" />
         <Stat k="页对齐收益" v="28.3%" n="64 人空投，实测 gas 降幅" />
-        <Stat k="真实交易" v="12 笔" n="三轮空投 / 部署，链上可查" />
+        <Stat
+          k="真实交易"
+          v="12 笔"
+          n="三轮空投 / 部署，链上可查"
+          href="https://github.com/huangluffy27-rgb/GasPassport/blob/main/docs/%E9%93%BE%E4%B8%8A%E5%AE%9E%E6%B5%8B%E6%80%BB%E7%BB%93.md"
+        />
       </section>
 
       <section className="panel">
@@ -193,6 +198,9 @@ function Overview({ setTab }: { setTab: (t: Tab) => void }) {
             </div>
           ))}
         </div>
+        <p className="muted small">
+          接入方式：把 <code>scripts/sample_testnet.mjs</code> 里的 artifacts 和函数参数换成你的合约，跑一次就能生成自己的预算表。
+        </p>
       </section>
 
       <section className="panel">
@@ -237,12 +245,20 @@ function Overview({ setTab }: { setTab: (t: Tab) => void }) {
   );
 }
 
-function Stat({ k, v, n }: { k: string; v: string; n: string }) {
+function Stat({ k, v, n, href }: { k: string; v: string; n: string; href?: string }) {
   return (
     <div className="stat">
       <div className="stat-k">{k}</div>
       <div className="stat-v">{v}</div>
-      <div className="stat-n">{n}</div>
+      <div className="stat-n">
+        {href ? (
+          <a href={href} target="_blank" rel="noreferrer">
+            {n} ↗
+          </a>
+        ) : (
+          n
+        )}
+      </div>
     </div>
   );
 }
@@ -279,7 +295,10 @@ function BudgetPanel({ notify }: { notify: (t: string, k?: "ok" | "err") => void
       <div className="panel-head">
         <div>
           <h2>预算表</h2>
-          <p className="muted">选择输入规模，查该桶的 99% 认证上限；右侧是朴素 3x buffer 的对比。</p>
+          <p className="muted">
+            选择输入规模，查该桶的 99% 认证上限；右侧是朴素 3x buffer 的对比。
+            认证区间为 1–64（空投合约 1–32），更大规模按每笔拆开报，单笔上限约 1,000 人。
+          </p>
         </div>
         <button className="btn ghost" onClick={download}>
           导出 gas-budget.json
@@ -475,7 +494,7 @@ function AlignPanel({
       )}
 
       <div className="panel sub">
-        <h3>四种输入规模的实测</h3>
+        <h3>各输入规模的实测</h3>
         <table>
           <thead>
             <tr><th>人数</th><th>散列映射</th><th>页对齐</th><th>差额</th><th>降幅</th></tr>
@@ -483,13 +502,13 @@ function AlignPanel({
           <tbody>
             {ALIGNED.map((r) => (
               <tr key={r.n} className={r.n === n ? "hl" : ""}>
-                <td>{r.n}</td><td>{fmt(r.mapping)}</td><td>{fmt(r.aligned)}</td><td>{fmt(r.diff)}</td><td className="good-text">{r.pct.toFixed(1)}%</td>
+                <td>{fmt(r.n)}</td><td>{fmt(r.mapping)}</td><td>{fmt(r.aligned)}</td><td>{fmt(r.diff)}</td><td className="good-text">{r.pct.toFixed(1)}%</td>
               </tr>
             ))}
           </tbody>
         </table>
         <p className="muted">
-          低于「页数 32 → 1」的理论值（约 59%），因为每个槽仍要付零→非零写入；页对齐真正省下的是页激活、缓存与 I/O。
+          1,000 人一行是补测，用于说明规模趋势，不在上方按钮里。低于「页数 32 → 1」的理论值（约 59%），因为每个槽仍要付零→非零写入；页对齐真正省下的是页激活、缓存与 I/O。
         </p>
       </div>
     </section>
