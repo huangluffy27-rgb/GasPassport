@@ -1,19 +1,29 @@
 # GasPassport
 
-给 Monad 合约的每个函数算一张**有覆盖保证的 gas 预算表**：按输入规模分桶，每桶一个认证上限。
+**给还没上线的 Monad 合约，先算清楚每个函数该留多少 gas。**
 
-> 在线原型：https://huangluffy27-rgb.github.io/Monad_Product/ —— 连接钱包、查预算表、链上实测页对齐。报告页在 `/report.html`。
+现在的常见做法是拍一个“3 倍余量”。在 Monad 上这会直接多付钱：gas 按 limit 扣，不退。GasPassport 给的是按输入规模分桶、带 99% 覆盖保证的预算表。
 
-它不跟 `eth_estimateGas` 抢「单笔预估」——我们自己的真实交易校准证明 `estimateGas` 就是最小可行 limit。它补的是 `estimateGas` 覆盖不到的场景：
+> 在线原型：https://huangluffy27-rgb.github.io/Monad_Product/ —— 连接钱包、查预算表、链上实测页对齐；报告页在 `/report.html`。
 
-| 场景 | 每次调 `eth_estimateGas` | GasPassport 预算表 |
+一个真实例子，32 人空投：
+
+- 散列映射要 952,286 gas，页对齐只要 711,130，省 **25%**
+- 如果拍 3 倍余量，会多付 **160% 以上**
+- 合约还没部署时，`eth_estimateGas` 算不了这个函数；我们用状态覆盖先跑出来
+
+## 为什么不能直接用 eth_estimateGas？
+
+| 场景 | 能直接用吗 | 说明 |
 |---|---|---|
-| 部署前 / CI 审计 | 函数还没部署时无法逐调用估算 | state override 在未部署字节码上跑函数，按输入族出预算 |
-| 批量 / 代付 / AA | 逐笔模拟，延迟叠加 | 一次认证，运行时查表 0 次 RPC |
-| 输入在签名后才确定 | 不知道参数，估不了 | 按输入规模分桶，每桶一个上限 |
-| 状态漂移与并发 | 只反映当前状态 | 分布上的覆盖保证，不是单点估值 |
+| 部署交易的 gas | 能 | 发 `data=创建字节码`、没有 `to` 的请求即可 |
+| 单笔函数调用 | 能 | 合约已部署、状态确定时，请直接用它 |
+| 函数还没部署 | 不能 | 没有地址可调用；我们用 state override 在未部署字节码上跑函数 |
+| 批量 / 代付 / AA | 不适合 | 逐笔模拟延迟叠加；预算表一次认证、运行时查表 |
+| 输入签名后才确定 | 不能 | 不知道参数估不了；按输入规模分桶，每桶一个上限 |
+| 状态漂移与并发 | 不够 | 只反映当前状态；预算表给的是分布上的覆盖保证 |
 
-单笔、状态确定、能立即模拟的场景，直接 `eth_estimateGas` 更简单，这个工具不适用。
+所以这个工具不跟 `estimateGas` 抢「单笔预估」，只补它覆盖不到的场景。
 
 ## 方法
 
@@ -122,7 +132,7 @@
 
 dApp 端 4 笔真实交易（部署 + 32 人空投）的完整哈希、费用拆分与部署优化见 [docs/链上实测总结.md](docs/链上实测总结.md)。
 
-完整报告：[docs/report.html](docs/report.html)（GitHub Pages），预览图 [docs/report-preview.png](docs/report-preview.png)。
+完整报告：[docs/report.html](docs/report.html)（GitHub Pages），预览图 [docs/report-preview.png](docs/report-preview.png)。评委问答话术见 [docs/评委问答.md](docs/评委问答.md)。
 
 ## 快速开始
 
