@@ -3,7 +3,14 @@ import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { buildInsight, readPageCost, readSamples, summarize } from "./analyze.js";
+import {
+  buildAirdropInsight,
+  buildInsight,
+  readAirdropSamples,
+  readPageCost,
+  readSamples,
+  summarize,
+} from "./analyze.js";
 import { renderReport } from "./report.js";
 
 function main(): void {
@@ -24,8 +31,13 @@ function main(): void {
   const stats = samplers.map((s) => summarize(s, samples));
   const insight = buildInsight(pages, stats);
 
+  const airSamples = readAirdropSamples(dir);
+  const airSamplers = [...new Set(airSamples.map((s) => s.sampler))];
+  const airStats = airSamplers.map((s) => summarize(s, airSamples));
+  const airInsight = buildAirdropInsight(airSamples, airStats);
+
   const now = new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC";
-  const html = renderReport(stats, pages, insight, now);
+  const html = renderReport(stats, pages, insight, airStats, airInsight, now);
   const outPath = resolve(dir, "report.html");
   writeFileSync(outPath, html, "utf8");
 
@@ -45,6 +57,10 @@ function main(): void {
   console.log(`跨页额外成本：+${Math.round(insight.pageOverhead)} gas（+${(insight.pageOverheadPct * 100).toFixed(1)}%）`);
   console.log(`推荐 gas limit：${insight.recommendedLimit}（经验覆盖 ${((insight.coverage * 100).toFixed(1))}%）`);
   console.log(`3x 固定 buffer：${insight.naiveBuffer}，多付 ${(insight.bufferOverpayPct * 100).toFixed(1)}%`);
+  console.log("");
+  console.log(
+    `批量空投：最坏 ${airInsight.maxPages} 页，推荐 ${airInsight.recommendedLimit}，3x buffer 多付 ${(airInsight.bufferOverpayPct * 100).toFixed(1)}%`,
+  );
   console.log("");
   console.log(`报告：${outPath}`);
 }

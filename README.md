@@ -20,7 +20,7 @@ Monad 上有两条和以太坊不同的成本规则：
    - `iet`：黄金比例低差异序列 + 区间交换变换（IET），小样本下更快铺满区间
    - `logistic`：`x ← 3.99·x·(1−x)` 确定性混沌映射
 2. **实测**：在 Foundry 里对每个输入真实调用目标函数，用 `gasleft()` 记录 EVM 执行 gas
-3. **建模**：按 MIP-8 参数补上页成本（每多一页 +8,000 gas）
+3. **建模**：用 `vm.record` / `vm.accesses` 读每次调用的真实存储写入集合，按 128 槽一页去重，再按 MIP-8 参数补页成本（每多一页 +8,000 gas）
 4. **统计**：蒙特卡洛估计分布，用 N 个样本的最大值作为经验分位数上界（覆盖约 `1 − 1/(N+1)`），再留 5% 余量给出推荐 limit
 5. **报告**：输出分位数、收敛曲线、页成本对照、推荐值与朴素 3x buffer 的差额
 
@@ -36,6 +36,15 @@ Monad 上有两条和以太坊不同的成本规则：
 | 推荐 gas limit | 2,076,475（经验覆盖 99.8%） |
 | 朴素 3x buffer | 3,119,766（多付 50.2%） |
 | N=16 收敛误差 | IET 1.76% vs 均匀随机 16.93% |
+
+第二组目标 `BatchAirdrop`（一次给 N 个地址发钱，余额槽由 keccak 散列决定）：
+
+| 指标 | 数值 |
+|---|---|
+| 最坏输入 | 32 人 → 32 页 |
+| 推荐 gas limit | 1,079,612 |
+| 朴素 3x buffer | 1,614,384（多付 49.5%） |
+| 页数来源 | `vm.record` / `vm.accesses` 真实写入轨迹 |
 
 完整报告：[contracts/reports/report.html](contracts/reports/report.html)，预览图 [docs/report-preview.png](docs/report-preview.png)。
 
@@ -60,6 +69,7 @@ node dist/index.js
 ```
 contracts/
 ├── src/PageWriter.sol      # 同页连续写 vs 跨页散布写
+├── src/BatchAirdrop.sol    # 第二组目标：批量空投，散列余额槽
 ├── src/Chaos.sol           # uniform / IET / logistic 三种采样器
 ├── test/ChaosGas.t.sol     # 采样 campaign，输出 CSV
 └── reports/                # 采样数据与 HTML 报告
@@ -72,7 +82,7 @@ app/
 ## 口径与限制
 
 - EVM 执行 gas 由 Foundry 实测；**Monad 页成本是按 MIP-8 参数建模**，不是链上实测值，正式使用前应在 Monad 测试网复核。
-- 当前 demo 的目标函数是 `PageWriter.writeScattered`，页数随写入次数线性增长；接入真实合约时，页数应从存储访问轨迹里统计，而不是按公式推断。
+- 页数来自 `vm.record` / `vm.accesses` 的真实写入轨迹，但 `vm.accesses` 只覆盖当前交易；跨交易的状态预热不在统计范围内。
 - 经验分位数依赖样本量：N=512 时 max 只覆盖约 99.8%，不要把它当成 99.99% 的保证。
 
 ## 许可

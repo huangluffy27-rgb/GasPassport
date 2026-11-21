@@ -1,4 +1,4 @@
-import type { Insight, PageRow, SamplerStats } from "./analyze.js";
+import type { AirdropInsight, Insight, PageRow, SamplerStats } from "./analyze.js";
 import { PAGE_EXTRA } from "./analyze.js";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
@@ -96,11 +96,14 @@ export function renderReport(
   stats: SamplerStats[],
   pages: PageRow[],
   insight: Insight,
+  airStats: SamplerStats[],
+  airInsight: AirdropInsight,
   generatedAt: string,
 ): string {
-  const rows = stats
-    .map(
-      (s) => `<tr>
+  const statsRows = (list: SamplerStats[]) =>
+    list
+      .map(
+        (s) => `<tr>
         <td>${s.sampler}</td>
         <td>${s.n}</td>
         <td>${fmt(s.mean)}</td>
@@ -111,8 +114,10 @@ export function renderReport(
         <td>${fmt(s.ci95)}</td>
         <td>${pct(s.convergence[2]?.error ?? 0)}</td>
       </tr>`,
-    )
-    .join("");
+      )
+      .join("");
+
+  const rows = statsRows(stats);
 
   const pageRows = pages
     .map((r) => {
@@ -207,6 +212,31 @@ export function renderReport(
     <thead><tr><th>采样器</th><th>N</th><th>均值</th><th>p50</th><th>p95</th><th>p99</th><th>max</th><th>均值 95% CI</th><th>N=64 误差</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>
+
+  <h2>第二组目标：批量空投（页数来自真实存储轨迹）</h2>
+  <div class="cards">
+    <div class="card">
+      <div class="k">推荐 gas limit</div>
+      <div class="v">${fmt(airInsight.recommendedLimit)}</div>
+      <div class="n">经验覆盖 ${pct(airInsight.coverage)}，留 5% 余量</div>
+    </div>
+    <div class="card">
+      <div class="k">3x 固定 buffer</div>
+      <div class="v">${fmt(airInsight.naiveBuffer)}</div>
+      <div class="n">相对推荐值多付 ${pct(airInsight.bufferOverpayPct)}</div>
+    </div>
+    <div class="card">
+      <div class="k">最坏页数</div>
+      <div class="v">${airInsight.maxPages}</div>
+      <div class="n">跨页额外成本 +${fmt(airInsight.pageOverhead)}</div>
+    </div>
+  </div>
+  ${convergenceChart(airStats)}
+  <table>
+    <thead><tr><th>采样器</th><th>N</th><th>均值</th><th>p50</th><th>p95</th><th>p99</th><th>max</th><th>均值 95% CI</th><th>N=64 误差</th></tr></thead>
+    <tbody>${statsRows(airStats)}</tbody>
+  </table>
+  <p class="note">第二组目标的页数不是按公式推的，而是每次调用后用 <code>vm.record</code> / <code>vm.accesses</code> 读真实写入集合，再按 128 槽一页去重统计。每个地址的余额槽由 keccak 散列决定，基本一槽一页，所以空投人数直接放大页成本。</p>
 
   <h2>结论</h2>
   <div class="note ok">

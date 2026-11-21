@@ -3,22 +3,25 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {PageWriter} from "../src/PageWriter.sol";
+import {BatchAirdrop} from "../src/BatchAirdrop.sol";
 import {Chaos} from "../src/Chaos.sol";
 
 /// @title ChaosGasCampaign
-/// @notice 采样 campaign：测 EVM 执行 gas，并按 MIP-8 页模型补上页成本，落 CSV 给 TS 分析器。
-/// @dev 本地 Foundry 是标准 EVM 计费，测不到 Monad 的页差异，所以页成本按参数建模：
-///      每页首次访问 8,100 gas，同页后续 100 gas；相对同页基线的额外成本 = (pages - 1) * 8,000。
+/// @notice 采样 campaign：实测 EVM gas + 从存储访问轨迹统计页数，按 MIP-8 补页成本后落 CSV。
+/// @dev 页数来自 vm.record / vm.accesses 的真实访问集合，不再按公式推断。
 contract ChaosGasCampaign is Test {
     string internal constant PAGE_COST = "reports/page_cost.csv";
     string internal constant SAMPLES = "reports/gas_samples.csv";
+    string internal constant AIRDROP = "reports/airdrop_samples.csv";
 
     uint256 internal constant N = 512;
+    uint256 internal constant N_AIRDROP = 256;
     uint256 internal constant PAGE_EXTRA = 8_000;
 
     function setUp() public {
         vm.writeFile(PAGE_COST, "count,pages_contiguous,pages_scattered,gas_contiguous,gas_scattered\n");
         vm.writeFile(SAMPLES, "sampler,iter,count,gas_evm,pages,gas_monad\n");
+        vm.writeFile(AIRDROP, "sampler,iter,count,gas_evm,pages,gas_monad\n");
     }
 
     /// @notice 页成本对照：同样的写入次数，同页 vs 跨页
@@ -28,21 +31,27 @@ contract ChaosGasCampaign is Test {
             uint256 c = counts[k];
 
             PageWriter contiguousWriter = new PageWriter();
+            vm.record();
             uint256 start = gasleft();
             contiguousWriter.writeContiguous(c);
             uint256 gasContiguous = start - gasleft();
+            (, bytes32[] memory contigWrites) = vm.accesses(address(contiguousWriter));
 
             PageWriter scatteredWriter = new PageWriter();
+            vm.record();
             start = gasleft();
             scatteredWriter.writeScattered(c);
             uint256 gasScattered = start - gasleft();
+            (, bytes32[] memory scatterWrites) = vm.accesses(address(scatteredWriter));
 
             vm.writeLine(
                 PAGE_COST,
                 string.concat(
                     vm.toString(c),
-                    ",1,",
-                    vm.toString(c),
+                    ",",
+                    vm.toString(_uniquePages(contigWrites)),
+                    ",",
+                    vm.toString(_uniquePages(scatterWrites)),
                     ",",
                     vm.toString(gasContiguous),
                     ",",
@@ -57,6 +66,13 @@ contract ChaosGasCampaign is Test {
         _sample("uniform", 0);
         _sample("iet", 1);
         _sample("logistic", 2);
+    }
+
+    /// @notice 第二组目标：批量空投，每次写 N 个散列余额槽
+    function testAirdropSamples() public {
+        _airdrop("uniform", 0);
+        _airdrop("iet", 1);
+        _airdrop("logistic", 2);
     }
 
     function _sample(string memory label, uint8 kind) internal {
@@ -74,12 +90,12 @@ contract ChaosGasCampaign is Test {
             uint256 count = 1 + (((u % 1e18) * 64) / 1e18);
 
             PageWriter writer = new PageWriter();
+            vm.record();
             uint256 start = gasleft();
             writer.writeScattered(count);
             uint256 used = start - gasleft();
-
-            // writeScattered 每次落到新的一页，所以页数 = count
-            uint256 pages = count;
+            (, bytes32[] memory writes) = vm.accesses(address(writer));
+            uint256 pages = _uniquePages(writes);
 
             vm.writeLine(
                 SAMPLES,
@@ -98,5 +114,73 @@ contract ChaosGasCampaign is Test {
                 )
             );
         }
+    }
+
+    function _airdrop(string memory label, uint8 kind) internal {
+        uint256 state = 0.53e18;
+        for (uint256 i = 0; i < N_AIRDROP; ++i) {
+            uint256 u;
+            if (kind == 0) {
+                u = Chaos.uniform(0xA11D20B, i);
+            } else if (kind == 1) {
+                u = Chaos.iet(i);
+            } else {
+                state = Chaos.logisticStep(state);
+                u = state;
+            }
+            uint256 count = 1 + (((u % 1e18) * 32) / 1e18);
+
+            address[] memory users = new address[](count);
+            for (uint256 j = 0; j < count; ++j) {
+                users[j] = address(
+                    uint160(uint256(keccak256(abi.encodePacked(label, i, j))))
+                );
+            }
+
+            BatchAirdrop airdrop = new BatchAirdrop();
+            vm.record();
+            uint256 start = gasleft();
+            airdrop.airdrop(users, 1e18);
+            uint256 used = start - gasleft();
+            (, bytes32[] memory writes) = vm.accesses(address(airdrop));
+            uint256 pages = _uniquePages(writes);
+
+            vm.writeLine(
+                AIRDROP,
+                string.concat(
+                    label,
+                    ",",
+                    vm.toString(i),
+                    ",",
+                    vm.toString(count),
+                    ",",
+                    vm.toString(used),
+                    ",",
+                    vm.toString(pages),
+                    ",",
+                    vm.toString(used + (pages - 1) * PAGE_EXTRA)
+                )
+            );
+        }
+    }
+
+    /// @dev 每 128 个连续槽算一页，统计访问到的不同页数
+    function _uniquePages(bytes32[] memory slots) internal pure returns (uint256) {
+        uint256[] memory seen = new uint256[](slots.length);
+        uint256 n;
+        for (uint256 i = 0; i < slots.length; ++i) {
+            uint256 page = uint256(slots[i]) / 128;
+            bool found;
+            for (uint256 j = 0; j < n; ++j) {
+                if (seen[j] == page) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                seen[n++] = page;
+            }
+        }
+        return n;
     }
 }

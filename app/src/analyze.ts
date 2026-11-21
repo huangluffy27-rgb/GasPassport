@@ -43,8 +43,8 @@ function parseCsv(text: string): string[][] {
     .map((line) => line.split(","));
 }
 
-export function readSamples(dir: string): Sample[] {
-  const rows = parseCsv(readFileSync(join(dir, "gas_samples.csv"), "utf8"));
+export function readSamples(dir: string, file = "gas_samples.csv"): Sample[] {
+  const rows = parseCsv(readFileSync(join(dir, file), "utf8"));
   return rows.map((cols) => ({
     sampler: cols[0],
     iter: Number(cols[1]),
@@ -53,6 +53,10 @@ export function readSamples(dir: string): Sample[] {
     pages: Number(cols[4]),
     gasMonad: Number(cols[5]),
   }));
+}
+
+export function readAirdropSamples(dir: string): Sample[] {
+  return readSamples(dir, "airdrop_samples.csv");
 }
 
 export function readPageCost(dir: string): PageRow[] {
@@ -148,6 +152,33 @@ export function buildInsight(pages: PageRow[], stats: SamplerStats[]): Insight {
     recommendedLimit: Math.ceil(maxGas * 1.05),
     naiveBuffer: Math.ceil(avgGas * 3),
     bufferOverpayPct: (avgGas * 3 - maxGas * 1.05) / (maxGas * 1.05),
+    coverage: 1 - 1 / (n + 1),
+  };
+}
+
+export type AirdropInsight = {
+  maxPages: number;
+  maxGas: number;
+  recommendedLimit: number;
+  naiveBuffer: number;
+  bufferOverpayPct: number;
+  pageOverhead: number;
+  coverage: number;
+};
+
+export function buildAirdropInsight(samples: Sample[], stats: SamplerStats[]): AirdropInsight {
+  const maxPages = Math.max(...samples.map((s) => s.pages));
+  const maxGas = Math.max(...stats.map((s) => s.max));
+  const avgGas = mean(stats.map((s) => s.mean));
+  const n = stats[0]?.n ?? 1;
+
+  return {
+    maxPages,
+    maxGas,
+    recommendedLimit: Math.ceil(maxGas * 1.05),
+    naiveBuffer: Math.ceil(avgGas * 3),
+    bufferOverpayPct: (avgGas * 3 - maxGas * 1.05) / (maxGas * 1.05),
+    pageOverhead: (maxPages - 1) * PAGE_EXTRA,
     coverage: 1 - 1 / (n + 1),
   };
 }
