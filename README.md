@@ -2,6 +2,8 @@
 
 给 Monad 合约的每个函数算一张**有覆盖保证的 gas 预算表**：按输入规模分桶，每桶一个认证上限。
 
+> 在线原型：https://huangluffy27-rgb.github.io/Monad_Product/ —— 连接钱包、查预算表、链上实测页对齐。报告页在 `/report.html`。
+
 它不跟 `eth_estimateGas` 抢「单笔预估」——我们自己的真实交易校准证明 `estimateGas` 就是最小可行 limit。它补的是 `estimateGas` 覆盖不到的场景：
 
 | 场景 | 每次调 `eth_estimateGas` | ChaosGas 预算表 |
@@ -118,7 +120,7 @@
 - `0.97× estimateGas` 全部回滚，`1.00×` 全部成功 → **estimateGas 就是最小可行 limit**
 - 回执 `gasUsed` 恒等于 `gasLimit`（Monad 按 limit 扣费），所以真实成本只能二分试探，不能直接读回执
 
-完整报告：[docs/index.html](docs/index.html)（GitHub Pages），预览图 [docs/report-preview.png](docs/report-preview.png)。
+完整报告：[docs/report.html](docs/report.html)（GitHub Pages），预览图 [docs/report-preview.png](docs/report-preview.png)。
 
 ## 快速开始
 
@@ -137,6 +139,11 @@ cd app
 npm install
 npm run build
 node dist/index.js
+
+# 4. dApp 原型（输出到 docs/）
+cd ../dapp
+npm install
+npm run build
 ```
 
 ## 仓库结构
@@ -158,7 +165,13 @@ scripts/
 ├── sample_testnet.mjs      # 测试网原生采样（state override）
 ├── measure_monad_page_cost.ps1
 ├── measure_aligned.mjs     # 页对齐 vs 散列映射对比
+├── gen_dapp_contracts.mjs  # 从 Foundry 产物生成 dApp ABI/字节码
 └── calibrate_receipts.mjs  # 真实交易校准
+dapp/
+├── src/App.tsx             # 概览 / 预算表 / 页对齐实测
+├── src/useWallet.ts        # EIP-1193 钱包、链切换、交易回执
+├── src/data.ts             # 实测数据与分桶
+└── src/contracts.ts        # 生成的 ABI 与部署字节码
 ```
 
 ## 口径与限制
@@ -171,3 +184,4 @@ scripts/
 ## 许可
 
 [MIT](LICENSE)
+

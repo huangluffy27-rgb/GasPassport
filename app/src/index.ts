@@ -91,7 +91,7 @@ function main(): void {
   writeFileSync(outPath, html, "utf8");
 
   // GitHub Pages 使用的副本
-  const docsPath = resolve(fileURLToPath(new URL("../../docs/index.html", import.meta.url)));
+  const docsPath = resolve(fileURLToPath(new URL("../../docs/report.html", import.meta.url)));
   writeFileSync(docsPath, html, "utf8");
 
   console.log("ChaosGas · Monad 合约 gas limit 体检");
@@ -121,3 +121,4 @@ function main(): void {
 }
 
 main();
+
