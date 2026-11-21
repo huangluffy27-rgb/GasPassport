@@ -1,0 +1,45 @@
+name: gas-budget
+
+# 手动触发：在 Actions 页面输入函数名与最大输入规模，产出 gas-budget.json。
+on:
+  workflow_dispatch:
+    inputs:
+      function:
+        description: "函数名"
+        required: true
+        default: "airdrop"
+      max:
+        description: "最大输入规模"
+        required: true
+        default: "32"
+
+jobs:
+  budget:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Build contracts
+        working-directory: contracts
+        run: forge build
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install viem
+        run: npm init -y && npm i viem --no-save
+
+      - name: Run budget
+        run: |
+          node scripts/prebudget_api.mjs \
+            --artifact contracts/out/BatchAirdrop.sol/BatchAirdrop.json \
+            --function "${{ inputs.function }}" \
+            --min 1 --max "${{ inputs.max }}" --step 8 > budget.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gas-budget
+          path: budget.json
