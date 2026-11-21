@@ -130,9 +130,9 @@
 - `0.97× estimateGas` 全部回滚，`1.00×` 全部成功 → **estimateGas 就是最小可行 limit**
 - 回执 `gasUsed` 恒等于 `gasLimit`（Monad 按 limit 扣费），所以真实成本只能二分试探，不能直接读回执
 
-dApp 端 4 笔真实交易（部署 + 32 人空投）的完整哈希、费用拆分与部署优化见 [docs/链上实测总结.md](docs/链上实测总结.md)。
+dApp 端三轮 12 笔真实交易（32/64 人空投 + 低成本部署）的完整哈希、费用拆分与部署优化见 [docs/链上实测总结.md](docs/链上实测总结.md)。
 
-完整报告：[docs/report.html](docs/report.html)（GitHub Pages），预览图 [docs/report-preview.png](docs/report-preview.png)。评委问答话术见 [docs/评委问答.md](docs/评委问答.md)。
+完整报告：[docs/report.html](docs/report.html)（GitHub Pages），预览图 [docs/report-preview.png](docs/report-preview.png)。
 
 ## 快速开始
 
