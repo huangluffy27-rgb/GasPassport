@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 export type Sample = {
+  target: string;
   sampler: string;
   iter: number;
   count: number;
@@ -47,19 +48,19 @@ function parseCsv(text: string): string[][] {
     .map((line) => line.split(","));
 }
 
-export function readSamples(dir: string, file = "gas_samples.csv"): Sample[] {
+export function readSamples(dir: string, file = "testnet_samples.csv"): Sample[] {
   const rows = parseCsv(readFileSync(join(dir, file), "utf8"));
   return rows.map((cols) => {
-    const gasEvm = Number(cols[3]);
-    const pages = Number(cols[4]);
+    const gas = Number(cols[5]);
     return {
-      sampler: cols[0],
-      iter: Number(cols[1]),
-      count: Number(cols[2]),
-      gasEvm,
-      pages,
-      // 用测试网实测的每页增量重算，不再信任 campaign 里的旧模型值
-      gasMonad: gasEvm + (pages - 1) * PAGE_EXTRA,
+      target: cols[0],
+      sampler: cols[1],
+      iter: Number(cols[2]),
+      count: Number(cols[3]),
+      gasEvm: gas,
+      pages: Number(cols[4]),
+      // 测试网原生 estimateGas，已包含页成本，不再二次建模
+      gasMonad: gas,
     };
   });
 }
@@ -103,7 +104,7 @@ export function readCalibration(dir: string): Calibration {
 }
 
 export function readAirdropSamples(dir: string): Sample[] {
-  return readSamples(dir, "airdrop_samples.csv");
+  return readSamples(dir).filter((s) => s.target === "BatchAirdrop");
 }
 
 export function readPageCost(dir: string): PageRow[] {

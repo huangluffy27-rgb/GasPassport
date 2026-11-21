@@ -1,5 +1,6 @@
 import type { AirdropInsight, Calibration, Insight, PageRow, SamplerStats, TestnetRow } from "./analyze.js";
 import { PAGE_EXTRA } from "./analyze.js";
+import type { TargetReport } from "./conformal.js";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
@@ -100,8 +101,12 @@ export function renderReport(
   insight: Insight,
   airStats: SamplerStats[],
   airInsight: AirdropInsight,
+  pwConf: TargetReport,
+  airConf: TargetReport,
   generatedAt: string,
 ): string {
+  const worstBucket = pwConf.buckets[pwConf.buckets.length - 1];
+  const bucketOverpay = worstBucket.buffer3x / worstBucket.limit - 1;
   const statsRows = (list: SamplerStats[]) =>
     list
       .map(
@@ -176,18 +181,18 @@ export function renderReport(
 <body>
 <div class="wrap">
   <h1>ChaosGas 报告</h1>
-  <p class="sub">Monad 合约函数的 gas limit 体检 · 生成于 ${generatedAt} · 样本 ${stats[0]?.n ?? 0} / 采样器</p>
+  <p class="sub">Monad 合约函数的 gas limit 体检 · 生成于 ${generatedAt} · 1,536 条测试网原生采样</p>
 
   <div class="cards">
     <div class="card">
-      <div class="k">推荐 gas limit</div>
-      <div class="v">${fmt(insight.recommendedLimit)}</div>
-      <div class="n">经验覆盖 ${pct(insight.coverage)}，留 5% 余量</div>
+      <div class="k">小输入认证上限（1–8 次写）</div>
+      <div class="v">${fmt(pwConf.buckets[0].limit)}</div>
+      <div class="n">全局上限 ${fmt(pwConf.global.limit)}，收紧 ${pct(1 - pwConf.buckets[0].limit / pwConf.global.limit)}</div>
     </div>
     <div class="card">
-      <div class="k">3x 固定 buffer</div>
-      <div class="v">${fmt(insight.naiveBuffer)}</div>
-      <div class="n">相对推荐值多付 ${pct(insight.bufferOverpayPct)}</div>
+      <div class="k">大输入认证上限（33–64 次写）</div>
+      <div class="v">${fmt(worstBucket.limit)}</div>
+      <div class="n">共形预测 99% 覆盖 · 留出集实测 ${pct(worstBucket.coverage)}</div>
     </div>
     <div class="card">
       <div class="k">跨页额外成本</div>
@@ -195,6 +200,19 @@ export function renderReport(
       <div class="n">${insight.countMax} 次写入，占同页基线 ${pct(insight.pageOverheadPct)}</div>
     </div>
   </div>
+
+  <h2>为什么不是直接调 eth_estimateGas？</h2>
+  <p class="sub">我们自己的真实交易校准证明：<code>estimateGas</code> 就是最小可行 limit。所以这个工具不跟它抢「单笔预估」，只补它覆盖不到的四类场景。</p>
+  <table>
+    <thead><tr><th>场景</th><th>每次调用 eth_estimateGas</th><th>ChaosGas 预算认证表</th></tr></thead>
+    <tbody>
+      <tr><td>部署前 / CI 审计</td><td>合约还没上链，调不了</td><td>给定函数与输入族，部署前产出上限</td></tr>
+      <tr><td>批量 / 代付 / AA</td><td>要逐笔模拟，延迟叠加</td><td>一次认证，运行时查表 0 次 RPC</td></tr>
+      <tr><td>输入在签名后才确定</td><td>不知道参数，估不了</td><td>按输入规模分桶，每桶一个上限</td></tr>
+      <tr><td>状态漂移与并发</td><td>只反映当前状态</td><td>分布上的覆盖保证，不是单点估值</td></tr>
+    </tbody>
+  </table>
+  <p class="note">单笔、状态确定、能立即模拟的场景，直接 <code>eth_estimateGas</code> 更简单，这个工具不适用——把边界讲清楚比夸大适用范围更有用。</p>
 
   <h2>页成本：同一批写入，布局决定账单（Monad 测试网实测）</h2>
   ${barChart(testnet)}
@@ -223,6 +241,45 @@ export function renderReport(
   </table>
   <p class="note">在测试网真实部署 <code>${calibration.contract.slice(0, 10)}…</code> 并发起 6 笔交易：0.97× estimateGas 全部回滚，1.00× 全部成功——<strong>estimateGas 就是最小可行 limit</strong>。回执的 <code>gasUsed</code> 恒等于 <code>gasLimit</code>（Monad 按 limit 扣费），所以真实成本只能靠二分试探，不能直接从回执读。散列那组因为部署后先跑了同页调用、有两个槽已预热，303,182 的差额是下限；冷状态估计的干净差值是 340,274（约 10,976 / 页）。</p>
 
+  <h2>条件认证上限：按输入规模分桶的共形预测</h2>
+  <p class="sub">全部样本改为测试网原生 <code>eth_estimateGas</code>（状态覆盖，不发交易），共 1,536 条。按输入规模分桶，偶数 iter 做校准、奇数 iter 做留出测试；上限取共形分位数（第 ⌈(n+1)×0.99⌉ 小），极值列用 GPD 外推 99.9% 并给 bootstrap 90% 区间。</p>
+  <table>
+    <thead><tr><th>输入规模</th><th>校准样本</th><th>99% 认证上限</th><th>留出覆盖</th><th>留出最大 gas</th><th>3x buffer</th><th>3x 覆盖</th><th>EVT 99.9%（90% CI）</th></tr></thead>
+    <tbody>${pwConf.buckets
+      .map(
+        (b) => `<tr>
+        <td>${b.label}</td>
+        <td>${b.nCal}</td>
+        <td>${fmt(b.limit)}</td>
+        <td>${pct(b.coverage)}</td>
+        <td>${fmt(b.oracleMax)}</td>
+        <td>${fmt(b.buffer3x)}</td>
+        <td>${pct(b.bufferCoverage)}</td>
+        <td>${fmt(b.evt999)} <span class="sub">[${fmt(b.evtLow)}, ${fmt(b.evtHigh)}]</span></td>
+      </tr>`,
+      )
+      .join("")}</tbody>
+  </table>
+  <p class="sub">BatchAirdrop（写 N 个散列余额槽）</p>
+  <table>
+    <thead><tr><th>输入规模</th><th>校准样本</th><th>99% 认证上限</th><th>留出覆盖</th><th>留出最大 gas</th><th>3x buffer</th><th>3x 覆盖</th><th>EVT 99.9%（90% CI）</th></tr></thead>
+    <tbody>${airConf.buckets
+      .map(
+        (b) => `<tr>
+        <td>${b.label}</td>
+        <td>${b.nCal}</td>
+        <td>${fmt(b.limit)}</td>
+        <td>${pct(b.coverage)}</td>
+        <td>${fmt(b.oracleMax)}</td>
+        <td>${fmt(b.buffer3x)}</td>
+        <td>${pct(b.bufferCoverage)}</td>
+        <td>${fmt(b.evt999)} <span class="sub">[${fmt(b.evtLow)}, ${fmt(b.evtHigh)}]</span></td>
+      </tr>`,
+      )
+      .join("")}</tbody>
+  </table>
+  <p class="note">分桶后 33–64 次写的上限 ${fmt(worstBucket.limit)}，留出覆盖 ${pct(worstBucket.coverage)}；全局共形上限 ${fmt(pwConf.global.limit)}，覆盖 ${pct(pwConf.global.coverage)}。条件版本在小输入上明显更紧，代价是需要知道这次调用落在哪个桶。</p>
+
   <h2>采样收敛：IET 比均匀随机更快贴近真值</h2>
   <p class="sub">灰=同页，蓝=跨页；线色：<span style="color:#dc2626">uniform</span> / <span style="color:#2563eb">iet</span> / <span style="color:#059669">logistic</span></p>
   ${convergenceChart(stats)}
@@ -233,23 +290,7 @@ export function renderReport(
   </table>
 
   <h2>第二组目标：批量空投（页数来自真实存储轨迹）</h2>
-  <div class="cards">
-    <div class="card">
-      <div class="k">推荐 gas limit</div>
-      <div class="v">${fmt(airInsight.recommendedLimit)}</div>
-      <div class="n">经验覆盖 ${pct(airInsight.coverage)}，留 5% 余量</div>
-    </div>
-    <div class="card">
-      <div class="k">3x 固定 buffer</div>
-      <div class="v">${fmt(airInsight.naiveBuffer)}</div>
-      <div class="n">相对推荐值多付 ${pct(airInsight.bufferOverpayPct)}</div>
-    </div>
-    <div class="card">
-      <div class="k">最坏页数</div>
-      <div class="v">${airInsight.maxPages}</div>
-      <div class="n">跨页额外成本 +${fmt(airInsight.pageOverhead)}</div>
-    </div>
-  </div>
+  <p class="sub">认证上限见上面的 BatchAirdrop 表；这里保留采样收敛与分位数，用来说明不同采样器的效率差异。</p>
   ${convergenceChart(airStats)}
   <table>
     <thead><tr><th>采样器</th><th>N</th><th>均值</th><th>p50</th><th>p95</th><th>p99</th><th>max</th><th>均值 95% CI</th><th>N=64 误差</th></tr></thead>
@@ -259,15 +300,14 @@ export function renderReport(
 
   <h2>结论</h2>
   <div class="note ok">
-    <strong>给这个函数的建议：</strong>gas limit 设为 <code>${fmt(insight.recommendedLimit)}</code>。
-    朴素的 3x 均值 buffer（${fmt(insight.naiveBuffer)}）会多付 ${pct(insight.bufferOverpayPct)}；
-    而按 p99.9 附近取值，失败概率低于 ${((1 - 0.998) * 100).toFixed(1)}%。
+    <strong>给这个函数的建议：</strong>按输入规模查表，33–64 次写用 <code>${fmt(worstBucket.limit)}</code>。
+    这是共形分位数，留出集实测覆盖 ${pct(worstBucket.coverage)}；朴素的 3x 均值 buffer（${fmt(worstBucket.buffer3x)}）多付 ${pct(bucketOverpay)}。
     在 Monad 上 gas 按 limit 扣费且不退，这部分就是纯损耗。
   </div>
   <p class="note">最坏情况出现在 count=${insight.countMax}：跨页写入 ${insight.worstCase.pagesScattered} 页，对比同页 ${insight.worstCase.pagesContiguous} 页。
-  峰值 gas 由输入结构（写入次数）和存储布局（页内/跨页）共同决定，均匀采样不保证碰到，所以先做最坏情况搜索再谈分布。以下分布与推荐值统一按测试网实测的每页 10,975 gas 折算。</p>
+  峰值 gas 由输入结构（写入次数）和存储布局（页内/跨页）共同决定，均匀采样不保证碰到，所以先做最坏情况搜索再谈分布。分布与认证上限全部来自测试网原生 estimateGas，不再混用本地 gas。</p>
 
-  <footer>ChaosGas · 确定性混沌 + 区间交换变换 + 蒙特卡洛 + 大数定律 · 输入可复现</footer>
+  <footer>ChaosGas · 条件共形预测 + 极值理论 + 低差异采样 · 输入可复现</footer>
 </div>
 </body>
 </html>`;

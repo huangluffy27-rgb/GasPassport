@@ -14,6 +14,7 @@ import {
   summarize,
 } from "./analyze.js";
 import { renderReport } from "./report.js";
+import { evaluateTarget } from "./conformal.js";
 
 function main(): void {
   const args = process.argv.slice(2);
@@ -27,7 +28,8 @@ function main(): void {
     ? resolve(flag.slice("--reports=".length))
     : resolve(fileURLToPath(new URL("../../contracts/reports", import.meta.url)));
 
-  const samples = readSamples(dir);
+  const all = readSamples(dir);
+  const samples = all.filter((s) => s.target === "PageWriter");
   const pages = readPageCost(dir);
   const testnet = readTestnetPageCost(dir);
   const calibration = readCalibration(dir);
@@ -35,13 +37,35 @@ function main(): void {
   const stats = samplers.map((s) => summarize(s, samples));
   const insight = buildInsight(pages, testnet, stats);
 
-  const airSamples = readAirdropSamples(dir);
+  const airSamples = all.filter((s) => s.target === "BatchAirdrop");
   const airSamplers = [...new Set(airSamples.map((s) => s.sampler))];
   const airStats = airSamplers.map((s) => summarize(s, airSamples));
   const airInsight = buildAirdropInsight(airSamples, airStats);
 
+  const confRows = all.map((s) => ({
+    target: s.target,
+    sampler: s.sampler,
+    iter: s.iter,
+    count: s.count,
+    pages: s.pages,
+    gas: s.gasMonad,
+  }));
+  const pwConf = evaluateTarget("PageWriter", confRows);
+  const airConf = evaluateTarget("BatchAirdrop", confRows);
+
   const now = new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC";
-  const html = renderReport(stats, pages, testnet, calibration, insight, airStats, airInsight, now);
+  const html = renderReport(
+    stats,
+    pages,
+    testnet,
+    calibration,
+    insight,
+    airStats,
+    airInsight,
+    pwConf,
+    airConf,
+    now,
+  );
   const outPath = resolve(dir, "report.html");
   writeFileSync(outPath, html, "utf8");
 
@@ -63,7 +87,10 @@ function main(): void {
   console.log(`3x 固定 buffer：${insight.naiveBuffer}，多付 ${(insight.bufferOverpayPct * 100).toFixed(1)}%`);
   console.log("");
   console.log(
-    `批量空投：最坏 ${airInsight.maxPages} 页，推荐 ${airInsight.recommendedLimit}，3x buffer 多付 ${(airInsight.bufferOverpayPct * 100).toFixed(1)}%`,
+    `批量空投：条件认证上限 ${airConf.buckets[airConf.buckets.length - 1].limit}，测试覆盖 ${(airConf.buckets[airConf.buckets.length - 1].coverage * 100).toFixed(1)}%`,
+  );
+  console.log(
+    `PageWriter：条件认证上限 ${pwConf.buckets[pwConf.buckets.length - 1].limit}，测试覆盖 ${(pwConf.buckets[pwConf.buckets.length - 1].coverage * 100).toFixed(1)}%`,
   );
   console.log("");
   console.log(`报告：${outPath}`);

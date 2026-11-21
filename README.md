@@ -1,79 +1,84 @@
 # ChaosGas
 
-给 Monad 合约的每个函数算一个**有统计依据的 gas limit**。面向高频合约、全链游戏、Agent 支付这类一天几十万笔调用的项目：limit 设高每一笔都在漏钱，设低整笔失败还照扣。
+给 Monad 合约的每个函数算一张**有覆盖保证的 gas 预算表**：按输入规模分桶，每桶一个认证上限。
 
-> 一句话：用确定性混沌、区间交换变换、蒙特卡洛与大数定律，把「gas 该设多少」从拍脑袋变成可复现的统计结论。
+它不跟 `eth_estimateGas` 抢「单笔预估」——我们自己的真实交易校准证明 `estimateGas` 就是最小可行 limit。它补的是 `estimateGas` 覆盖不到的场景：
 
-## 问题
+| 场景 | 每次调 `eth_estimateGas` | ChaosGas 预算表 |
+|---|---|---|
+| 部署前 / CI 审计 | 合约还没上链，调不了 | 给定函数与输入族，部署前产出上限 |
+| 批量 / 代付 / AA | 逐笔模拟，延迟叠加 | 一次认证，运行时查表 0 次 RPC |
+| 输入在签名后才确定 | 不知道参数，估不了 | 按输入规模分桶，每桶一个上限 |
+| 状态漂移与并发 | 只反映当前状态 | 分布上的覆盖保证，不是单点估值 |
 
-Monad 上有两条和以太坊不同的成本规则：
+单笔、状态确定、能立即模拟的场景，直接 `eth_estimateGas` 更简单，这个工具不适用。
 
-1. **按 `gas_limit` 扣费，不退多余 gas**。limit 写 3,000,000、实际用 200,000，差额照扣。
-2. **存储按 128 个连续槽一页预热**（MIP-8）：一页首次访问 8,100 gas，同页后续 100 gas，跨页再付一次。状态布局直接决定账单。
+## 方法
 
-开发者通常按「均值 × 3」拍一个固定 buffer，既没有覆盖保证，也不区分输入结构和存储布局。
+1. **测试网原生采样**：把目标合约的运行时字节码通过 `eth_estimateGas` 的 state override 挂到 Monad 测试网地址上模拟调用，不发交易、不需要私钥。共 1,536 条样本，gas 全部来自节点，不混用本地 EVM 口径。
+2. **条件共形预测**：按输入规模分桶，偶数 iter 做校准、奇数 iter 做留出测试。上限取共形分位数（第 ⌈(n+1)×0.99⌉ 小），得到有限样本、分布无关的 99% 覆盖保证。
+3. **极值理论外推**：对超过 80% 分位的尾部拟合广义帕累托分布（矩估计），外推 99.9% 分位并给 bootstrap 90% 区间——样本量撑不起 99.9% 时，这是唯一诚实的外推方式。
+4. **页成本测量**：用 `vm.record` / `vm.accesses` 从真实写入轨迹统计 128 槽页数，再看同页与跨页的 gas 差。
 
-## 做法
+## 实测结果
 
-1. **采样**：三种可复现的输入生成器，同一个种子在任何机器上跑出同一组序列
-   - `uniform`：keccak PRNG 均匀随机（基线）
-   - `iet`：黄金比例低差异序列 + 区间交换变换（IET），小样本下更快铺满区间
-   - `logistic`：`x ← 3.99·x·(1−x)` 确定性混沌映射
-2. **实测**：在 Foundry 里对每个输入真实调用目标函数，用 `gasleft()` 记录 EVM 执行 gas
-3. **建模**：用 `vm.record` / `vm.accesses` 读每次调用的真实存储写入集合，按 128 槽一页去重，再按 Monad 测试网实测的每页增量（约 10,975 gas）补页成本
-4. **统计**：蒙特卡洛估计分布，用 N 个样本的最大值作为经验分位数上界（覆盖约 `1 − 1/(N+1)`），再留 5% 余量给出推荐 limit
-5. **报告**：输出分位数、收敛曲线、页成本对照、推荐值与朴素 3x buffer 的差额
+### 条件认证上限（99% 覆盖）
 
-## 本仓库的实测结果
+`PageWriter.writeScattered`：
 
-页成本在 **Monad 测试网**上用 `eth_estimateGas` + 状态覆盖实测（不发交易、不需要测试币，脚本见 [scripts/measure_monad_page_cost.ps1](scripts/measure_monad_page_cost.ps1)）。每多一页约 **10,975 gas**，比按文档估的 8,000 高约 37%。
+| 输入规模 | 认证上限 | 留出覆盖 | 3x buffer | 3x 覆盖 | EVT 99.9%（90% CI） |
+|---|---|---|---|---|---|
+| 1–8 | 266,946 | 100% | 479,670 | 100% | 266,946 |
+| 9–16 | 493,837 | 100% | 1,144,447 | 100% | 493,837 |
+| 17–32 | 947,618 | 100% | 2,213,437 | 100% | 947,618 |
+| 33–64 | 1,855,180 | 100% | 4,378,193 | 100% | 1,855,180 |
 
-随后又用**真实交易**校准了一次（[scripts/calibrate_receipts.mjs](scripts/calibrate_receipts.mjs)）：部署 PageWriter 后发 6 笔交易，`0.97× estimateGas` 全部回滚、`1.00×` 全部成功——**estimateGas 就是最小可行 limit**。回执的 `gasUsed` 恒等于 `gasLimit`（Monad 按 limit 扣费），所以真实成本只能靠二分试探，不能直接从回执读。
+`BatchAirdrop.airdrop`：
 
-`PageWriter`，采样 512 / 采样器：
+| 输入规模 | 认证上限 | 留出覆盖 | 3x buffer | 3x 覆盖 | EVT 99.9%（90% CI） |
+|---|---|---|---|---|---|
+| 1–8 | 255,576 | 100% | 451,305 | 100% | 428,223 [311,505, 464,273] |
+| 9–16 | 487,821 | 100% | 1,161,230 | 100% | 511,618 [492,638, 582,623] |
+| 17–32 | 952,311 | 100% | 2,272,478 | 100% | 955,132 [952,311, 962,748] |
 
-| 指标 | 数值 |
-|---|---|
-| 最坏情况（64 次写）同页 | 1,163,725 gas |
-| 最坏情况（64 次写）跨页 | 1,855,180 gas |
-| 跨页额外成本 | +691,455 gas（+59.4%） |
-| 每页增量 | 10,975 gas（n=8/16/32/64 稳定） |
-| 推荐 gas limit | 2,273,271（经验覆盖 99.8%） |
-| 朴素 3x buffer | 3,406,191（多付 49.8%） |
-| N=16 收敛误差 | IET 1.76% vs 均匀随机 16.93% |
+小输入如果用全局上限（1,855,180），会比自己的认证上限多付约 85%；固定 3x buffer 在 1–8 桶多付约 80%。这就是「条件覆盖」的价值：不同输入规模不该共用一个上限。
 
-第二组目标 `BatchAirdrop`（一次给 N 个地址发钱，余额槽由 keccak 散列决定）：
+### 页成本（Monad 测试网实测）
 
-| 指标 | 数值 |
-|---|---|
-| 最坏输入 | 32 人 → 32 页 |
-| 推荐 gas limit | 1,176,448 |
-| 朴素 3x buffer | 1,754,558（多付 49.1%） |
-| 页数来源 | `vm.record` / `vm.accesses` 真实写入轨迹 |
+| 写入次数 | 同页 estimateGas | 跨页 estimateGas | 差额 | 每页增量 |
+|---|---|---|---|---|
+| 1 | 67,501 | 67,568 | +67 | — |
+| 8 | 190,059 | 266,946 | +76,887 | 10,983 |
+| 16 | 329,154 | 493,837 | +164,683 | 10,979 |
+| 32 | 607,344 | 947,618 | +340,274 | 10,976 |
+| 64 | 1,163,725 | 1,855,180 | +691,455 | 10,975 |
 
-完整报告：[contracts/reports/report.html](contracts/reports/report.html)，预览图 [docs/report-preview.png](docs/report-preview.png)。
+### 真实交易校准
+
+部署 `PageWriter` 后发了 6 笔真实交易：
+
+- `0.97× estimateGas` 全部回滚，`1.00×` 全部成功 → **estimateGas 就是最小可行 limit**
+- 回执 `gasUsed` 恒等于 `gasLimit`（Monad 按 limit 扣费），所以真实成本只能二分试探，不能直接读回执
+
+完整报告：[docs/index.html](docs/index.html)（GitHub Pages），预览图 [docs/report-preview.png](docs/report-preview.png)。
 
 ## 快速开始
 
 ```bash
-# 1. 合约与采样 campaign（首次需 forge install foundry-rs/forge-std）
+# 1. 编译与本地对照实验（首次需 forge install foundry-rs/forge-std）
 cd contracts
 forge test --match-path test/ChaosGas.t.sol
 
-# 2. 分析与报告
-cd ../app
+# 2. 测试网原生采样（需要 viem）
+cd ..
+npm i viem --no-save
+node scripts/sample_testnet.mjs
+
+# 3. 生成报告
+cd app
 npm install
 npm run build
 node dist/index.js
-```
-
-报告输出到 `contracts/reports/report.html`。
-
-测试网实测（需要 Foundry；校准脚本额外需要 `npm i viem --no-save`）：
-
-```bash
-powershell -File scripts\measure_monad_page_cost.ps1
-node scripts\calibrate_receipts.mjs
 ```
 
 ## 仓库结构
@@ -81,21 +86,27 @@ node scripts\calibrate_receipts.mjs
 ```
 contracts/
 ├── src/PageWriter.sol      # 同页连续写 vs 跨页散布写
-├── src/BatchAirdrop.sol    # 第二组目标：批量空投，散列余额槽
+├── src/BatchAirdrop.sol    # 批量空投，散列余额槽
 ├── src/Chaos.sol           # uniform / IET / logistic 三种采样器
-├── test/ChaosGas.t.sol     # 采样 campaign，输出 CSV
-└── reports/                # 采样数据与 HTML 报告
+├── test/ChaosGas.t.sol     # 本地 campaign，输出 CSV
+└── reports/                # 测试网采样、页成本、校准数据
 app/
-├── src/analyze.ts          # 分位数、收敛、页成本建模
+├── src/analyze.ts          # 分位数、收敛、页成本
+├── src/conformal.ts        # 条件共形预测 + EVT 外推
 ├── src/report.ts           # 自包含 HTML 报告
 └── src/index.ts            # CLI
+scripts/
+├── sample_testnet.mjs      # 测试网原生采样（state override）
+├── measure_monad_page_cost.ps1
+└── calibrate_receipts.mjs  # 真实交易校准
 ```
 
 ## 口径与限制
 
-- 页成本来自 Monad 测试网实测；`eth_estimateGas` 已被真实交易验证为最小可行 limit，但页增量在不同状态预热组合下会有约 ±3% 波动。
-- 页数来自 `vm.record` / `vm.accesses` 的真实写入轨迹，但 `vm.accesses` 只覆盖当前交易；跨交易的状态预热不在统计范围内。
-- 经验分位数依赖样本量：N=512 时 max 只覆盖约 99.8%，不要把它当成 99.99% 的保证。
+- 认证上限是 99% 覆盖，不是 100%；极端输入仍可能超出，超出即整笔失败且照扣 limit。
+- 分桶边界是人为选的（1–8 / 9–16 / 17–32 / 33–64），换合约需要重新定义桶。
+- 页数来自当前交易的写入轨迹，跨交易的状态预热不在统计范围内。
+- EVT 外推在样本尾部不够重时会退化到观测最大值，这是有意的保守处理。
 
 ## 许可
 

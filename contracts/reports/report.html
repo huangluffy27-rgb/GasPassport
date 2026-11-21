@@ -34,18 +34,18 @@
 <body>
 <div class="wrap">
   <h1>ChaosGas 报告</h1>
-  <p class="sub">Monad 合约函数的 gas limit 体检 · 生成于 2026-11-21 04:24:01 UTC · 样本 512 / 采样器</p>
+  <p class="sub">Monad 合约函数的 gas limit 体检 · 生成于 2026-11-21 04:34:14 UTC · 1,536 条测试网原生采样</p>
 
   <div class="cards">
     <div class="card">
-      <div class="k">推荐 gas limit</div>
-      <div class="v">2,273,271</div>
-      <div class="n">经验覆盖 99.8%，留 5% 余量</div>
+      <div class="k">小输入认证上限（1–8 次写）</div>
+      <div class="v">266,946</div>
+      <div class="n">全局上限 1,855,180，收紧 85.6%</div>
     </div>
     <div class="card">
-      <div class="k">3x 固定 buffer</div>
-      <div class="v">3,406,191</div>
-      <div class="n">相对推荐值多付 49.8%</div>
+      <div class="k">大输入认证上限（33–64 次写）</div>
+      <div class="v">1,855,180</div>
+      <div class="n">共形预测 99% 覆盖 · 留出集实测 100.0%</div>
     </div>
     <div class="card">
       <div class="k">跨页额外成本</div>
@@ -53,6 +53,19 @@
       <div class="n">64 次写入，占同页基线 59.4%</div>
     </div>
   </div>
+
+  <h2>为什么不是直接调 eth_estimateGas？</h2>
+  <p class="sub">我们自己的真实交易校准证明：<code>estimateGas</code> 就是最小可行 limit。所以这个工具不跟它抢「单笔预估」，只补它覆盖不到的四类场景。</p>
+  <table>
+    <thead><tr><th>场景</th><th>每次调用 eth_estimateGas</th><th>ChaosGas 预算认证表</th></tr></thead>
+    <tbody>
+      <tr><td>部署前 / CI 审计</td><td>合约还没上链，调不了</td><td>给定函数与输入族，部署前产出上限</td></tr>
+      <tr><td>批量 / 代付 / AA</td><td>要逐笔模拟，延迟叠加</td><td>一次认证，运行时查表 0 次 RPC</td></tr>
+      <tr><td>输入在签名后才确定</td><td>不知道参数，估不了</td><td>按输入规模分桶，每桶一个上限</td></tr>
+      <tr><td>状态漂移与并发</td><td>只反映当前状态</td><td>分布上的覆盖保证，不是单点估值</td></tr>
+    </tbody>
+  </table>
+  <p class="note">单笔、状态确定、能立即模拟的场景，直接 <code>eth_estimateGas</code> 更简单，这个工具不适用——把边界讲清楚比夸大适用范围更有用。</p>
 
   <h2>页成本：同一批写入，布局决定账单（Monad 测试网实测）</h2>
   <svg viewBox="0 0 680 280" class="chart" role="img" aria-label="页成本对比">
@@ -145,74 +158,134 @@
   </table>
   <p class="note">在测试网真实部署 <code>0x279f31c8…</code> 并发起 6 笔交易：0.97× estimateGas 全部回滚，1.00× 全部成功——<strong>estimateGas 就是最小可行 limit</strong>。回执的 <code>gasUsed</code> 恒等于 <code>gasLimit</code>（Monad 按 limit 扣费），所以真实成本只能靠二分试探，不能直接从回执读。散列那组因为部署后先跑了同页调用、有两个槽已预热，303,182 的差额是下限；冷状态估计的干净差值是 340,274（约 10,976 / 页）。</p>
 
+  <h2>条件认证上限：按输入规模分桶的共形预测</h2>
+  <p class="sub">全部样本改为测试网原生 <code>eth_estimateGas</code>（状态覆盖，不发交易），共 1,536 条。按输入规模分桶，偶数 iter 做校准、奇数 iter 做留出测试；上限取共形分位数（第 ⌈(n+1)×0.99⌉ 小），极值列用 GPD 外推 99.9% 并给 bootstrap 90% 区间。</p>
+  <table>
+    <thead><tr><th>输入规模</th><th>校准样本</th><th>99% 认证上限</th><th>留出覆盖</th><th>留出最大 gas</th><th>3x buffer</th><th>3x 覆盖</th><th>EVT 99.9%（90% CI）</th></tr></thead>
+    <tbody><tr>
+        <td>1–8</td>
+        <td>49</td>
+        <td>266,946</td>
+        <td>100.0%</td>
+        <td>266,946</td>
+        <td>479,670</td>
+        <td>100.0%</td>
+        <td>266,946 <span class="sub">[266,946, 266,946]</span></td>
+      </tr><tr>
+        <td>9–16</td>
+        <td>52</td>
+        <td>493,837</td>
+        <td>100.0%</td>
+        <td>493,837</td>
+        <td>1,144,447</td>
+        <td>100.0%</td>
+        <td>493,837 <span class="sub">[493,837, 493,837]</span></td>
+      </tr><tr>
+        <td>17–32</td>
+        <td>83</td>
+        <td>947,618</td>
+        <td>100.0%</td>
+        <td>947,618</td>
+        <td>2,213,437</td>
+        <td>100.0%</td>
+        <td>947,618 <span class="sub">[947,618, 947,618]</span></td>
+      </tr><tr>
+        <td>33–64</td>
+        <td>200</td>
+        <td>1,855,180</td>
+        <td>100.0%</td>
+        <td>1,855,180</td>
+        <td>4,378,193</td>
+        <td>100.0%</td>
+        <td>1,855,180 <span class="sub">[1,855,180, 1,855,180]</span></td>
+      </tr></tbody>
+  </table>
+  <p class="sub">BatchAirdrop（写 N 个散列余额槽）</p>
+  <table>
+    <thead><tr><th>输入规模</th><th>校准样本</th><th>99% 认证上限</th><th>留出覆盖</th><th>留出最大 gas</th><th>3x buffer</th><th>3x 覆盖</th><th>EVT 99.9%（90% CI）</th></tr></thead>
+    <tbody><tr>
+        <td>1–8</td>
+        <td>101</td>
+        <td>255,576</td>
+        <td>100.0%</td>
+        <td>255,576</td>
+        <td>451,305</td>
+        <td>100.0%</td>
+        <td>428,223 <span class="sub">[336,330, 464,234]</span></td>
+      </tr><tr>
+        <td>9–16</td>
+        <td>83</td>
+        <td>487,821</td>
+        <td>100.0%</td>
+        <td>487,821</td>
+        <td>1,161,230</td>
+        <td>100.0%</td>
+        <td>511,618 <span class="sub">[492,634, 619,620]</span></td>
+      </tr><tr>
+        <td>17–32</td>
+        <td>200</td>
+        <td>952,311</td>
+        <td>100.0%</td>
+        <td>952,311</td>
+        <td>2,272,478</td>
+        <td>100.0%</td>
+        <td>955,132 <span class="sub">[952,311, 960,153]</span></td>
+      </tr></tbody>
+  </table>
+  <p class="note">分桶后 33–64 次写的上限 1,855,180，留出覆盖 100.0%；全局共形上限 1,855,180，覆盖 100.0%。条件版本在小输入上明显更紧，代价是需要知道这次调用落在哪个桶。</p>
+
   <h2>采样收敛：IET 比均匀随机更快贴近真值</h2>
   <p class="sub">灰=同页，蓝=跨页；线色：<span style="color:#dc2626">uniform</span> / <span style="color:#2563eb">iet</span> / <span style="color:#059669">logistic</span></p>
   <svg viewBox="0 0 680 280" class="chart" role="img" aria-label="收敛曲线">
     <line x1="56" y1="236" x2="656" y2="236" stroke="#e2e8f0"/>
       <text x="48" y="240" text-anchor="end" class="axis">0.0%</text><line x1="56" y1="128" x2="656" y2="128" stroke="#e2e8f0"/>
-      <text x="48" y="132" text-anchor="end" class="axis">9.8%</text><line x1="56" y1="20" x2="656" y2="20" stroke="#e2e8f0"/>
-      <text x="48" y="24" text-anchor="end" class="axis">19.6%</text><path d="M 322.7 48.2 L 389.3 216.2 L 456.0 230.5 L 522.7 232.9 L 589.3 199.1 L 656.0 236.0" fill="none" stroke="#dc2626" stroke-width="2"/><path d="M 322.7 216.4 L 389.3 230.8 L 456.0 227.8 L 522.7 235.2 L 589.3 234.1 L 656.0 236.0" fill="none" stroke="#2563eb" stroke-width="2"/><path d="M 322.7 196.8 L 389.3 215.0 L 456.0 202.6 L 522.7 231.0 L 589.3 235.7 L 656.0 236.0" fill="none" stroke="#059669" stroke-width="2"/><text x="322.66666666666663" y="260" text-anchor="middle" class="axis">16</text><text x="389.33333333333337" y="260" text-anchor="middle" class="axis">32</text><text x="456" y="260" text-anchor="middle" class="axis">64</text><text x="522.6666666666667" y="260" text-anchor="middle" class="axis">128</text><text x="589.3333333333333" y="260" text-anchor="middle" class="axis">256</text><text x="656" y="260" text-anchor="middle" class="axis">512</text>
+      <text x="48" y="132" text-anchor="end" class="axis">7.5%</text><line x1="56" y1="20" x2="656" y2="20" stroke="#e2e8f0"/>
+      <text x="48" y="24" text-anchor="end" class="axis">15.1%</text><path d="M 356.0 48.2 L 431.0 214.7 L 506.0 197.0 L 581.0 186.3 L 656.0 236.0" fill="none" stroke="#dc2626" stroke-width="2"/><path d="M 356.0 213.3 L 431.0 231.9 L 506.0 227.9 L 581.0 234.5 L 656.0 236.0" fill="none" stroke="#2563eb" stroke-width="2"/><path d="M 356.0 186.1 L 431.0 208.5 L 506.0 192.7 L 581.0 229.2 L 656.0 236.0" fill="none" stroke="#059669" stroke-width="2"/><text x="356" y="260" text-anchor="middle" class="axis">16</text><text x="431" y="260" text-anchor="middle" class="axis">32</text><text x="506" y="260" text-anchor="middle" class="axis">64</text><text x="581" y="260" text-anchor="middle" class="axis">128</text><text x="656" y="260" text-anchor="middle" class="axis">256</text>
     <text x="56" y="278" class="axis">样本数 N（对数轴）· 相对全样本均值的误差</text>
   </svg>
-  <p class="sub">N=16 时，IET 的相对误差是 1.8%，均匀随机是 17.0%。</p>
+  <p class="sub">N=16 时，IET 的相对误差是 1.6%，均匀随机是 13.1%。</p>
   <table>
     <thead><tr><th>采样器</th><th>N</th><th>均值</th><th>p50</th><th>p95</th><th>p99</th><th>max</th><th>均值 95% CI</th><th>N=64 误差</th></tr></thead>
     <tbody><tr>
         <td>uniform</td>
-        <td>512</td>
-        <td>1,127,697</td>
-        <td>1,132,317</td>
-        <td>2,065,081</td>
-        <td>2,165,020</td>
-        <td>2,165,020</td>
-        <td>53,573</td>
-        <td>0.5%</td>
+        <td>256</td>
+        <td>1,004,073</td>
+        <td>1,032,702</td>
+        <td>1,741,735</td>
+        <td>1,855,180</td>
+        <td>1,855,180</td>
+        <td>63,218</td>
+        <td>2.7%</td>
       </tr><tr>
         <td>iet</td>
-        <td>512</td>
-        <td>1,114,619</td>
-        <td>1,115,661</td>
-        <td>2,065,081</td>
-        <td>2,165,020</td>
-        <td>2,165,020</td>
-        <td>53,357</td>
-        <td>0.7%</td>
+        <td>256</td>
+        <td>959,182</td>
+        <td>961,799</td>
+        <td>1,770,096</td>
+        <td>1,855,180</td>
+        <td>1,855,180</td>
+        <td>64,439</td>
+        <td>0.6%</td>
       </tr><tr>
         <td>logistic</td>
-        <td>512</td>
-        <td>1,163,873</td>
-        <td>1,198,943</td>
-        <td>2,165,020</td>
-        <td>2,165,020</td>
-        <td>2,165,020</td>
-        <td>63,671</td>
+        <td>256</td>
+        <td>1,002,995</td>
+        <td>1,032,702</td>
+        <td>1,855,180</td>
+        <td>1,855,180</td>
+        <td>1,855,180</td>
+        <td>76,739</td>
         <td>3.0%</td>
       </tr></tbody>
   </table>
 
   <h2>第二组目标：批量空投（页数来自真实存储轨迹）</h2>
-  <div class="cards">
-    <div class="card">
-      <div class="k">推荐 gas limit</div>
-      <div class="v">1,176,448</div>
-      <div class="n">经验覆盖 99.6%，留 5% 余量</div>
-    </div>
-    <div class="card">
-      <div class="k">3x 固定 buffer</div>
-      <div class="v">1,754,558</div>
-      <div class="n">相对推荐值多付 49.1%</div>
-    </div>
-    <div class="card">
-      <div class="k">最坏页数</div>
-      <div class="v">32</div>
-      <div class="n">跨页额外成本 +340,225</div>
-    </div>
-  </div>
+  <p class="sub">认证上限见上面的 BatchAirdrop 表；这里保留采样收敛与分位数，用来说明不同采样器的效率差异。</p>
   <svg viewBox="0 0 680 280" class="chart" role="img" aria-label="收敛曲线">
     <line x1="56" y1="236" x2="656" y2="236" stroke="#e2e8f0"/>
       <text x="48" y="240" text-anchor="end" class="axis">0.0%</text><line x1="56" y1="128" x2="656" y2="128" stroke="#e2e8f0"/>
-      <text x="48" y="132" text-anchor="end" class="axis">5.6%</text><line x1="56" y1="20" x2="656" y2="20" stroke="#e2e8f0"/>
-      <text x="48" y="24" text-anchor="end" class="axis">11.2%</text><path d="M 356.0 180.2 L 431.0 124.0 L 506.0 190.2 L 581.0 226.1 L 656.0 236.0" fill="none" stroke="#dc2626" stroke-width="2"/><path d="M 356.0 206.7 L 431.0 228.5 L 506.0 223.9 L 581.0 235.2 L 656.0 236.0" fill="none" stroke="#2563eb" stroke-width="2"/><path d="M 356.0 69.7 L 431.0 48.2 L 506.0 142.0 L 581.0 145.5 L 656.0 236.0" fill="none" stroke="#059669" stroke-width="2"/><text x="356" y="260" text-anchor="middle" class="axis">16</text><text x="431" y="260" text-anchor="middle" class="axis">32</text><text x="506" y="260" text-anchor="middle" class="axis">64</text><text x="581" y="260" text-anchor="middle" class="axis">128</text><text x="656" y="260" text-anchor="middle" class="axis">256</text>
+      <text x="48" y="132" text-anchor="end" class="axis">7.3%</text><line x1="56" y1="20" x2="656" y2="20" stroke="#e2e8f0"/>
+      <text x="48" y="24" text-anchor="end" class="axis">14.6%</text><path d="M 356.0 48.2 L 431.0 211.3 L 506.0 194.8 L 581.0 186.4 L 656.0 236.0" fill="none" stroke="#dc2626" stroke-width="2"/><path d="M 356.0 218.3 L 431.0 234.3 L 506.0 230.3 L 581.0 234.3 L 656.0 236.0" fill="none" stroke="#2563eb" stroke-width="2"/><path d="M 356.0 182.6 L 431.0 209.7 L 506.0 193.1 L 581.0 229.0 L 656.0 236.0" fill="none" stroke="#059669" stroke-width="2"/><text x="356" y="260" text-anchor="middle" class="axis">16</text><text x="431" y="260" text-anchor="middle" class="axis">32</text><text x="506" y="260" text-anchor="middle" class="axis">64</text><text x="581" y="260" text-anchor="middle" class="axis">128</text><text x="656" y="260" text-anchor="middle" class="axis">256</text>
     <text x="56" y="278" class="axis">样本数 N（对数轴）· 相对全样本均值的误差</text>
   </svg>
   <table>
@@ -220,48 +293,47 @@
     <tbody><tr>
         <td>uniform</td>
         <td>256</td>
-        <td>587,144</td>
-        <td>592,330</td>
-        <td>1,068,674</td>
-        <td>1,102,073</td>
-        <td>1,106,010</td>
-        <td>40,293</td>
-        <td>2.4%</td>
+        <td>524,559</td>
+        <td>545,864</td>
+        <td>894,249</td>
+        <td>952,286</td>
+        <td>952,298</td>
+        <td>32,396</td>
+        <td>2.8%</td>
       </tr><tr>
         <td>iet</td>
         <td>256</td>
-        <td>576,337</td>
-        <td>577,568</td>
-        <td>1,074,480</td>
-        <td>1,110,869</td>
-        <td>1,112,863</td>
-        <td>38,964</td>
-        <td>0.6%</td>
+        <td>500,943</td>
+        <td>502,318</td>
+        <td>923,250</td>
+        <td>952,291</td>
+        <td>952,311</td>
+        <td>32,986</td>
+        <td>0.4%</td>
       </tr><tr>
         <td>logistic</td>
         <td>256</td>
-        <td>591,077</td>
-        <td>599,589</td>
-        <td>1,117,973</td>
-        <td>1,120,201</td>
-        <td>1,120,426</td>
-        <td>47,223</td>
-        <td>4.9%</td>
+        <td>523,226</td>
+        <td>545,858</td>
+        <td>952,286</td>
+        <td>952,298</td>
+        <td>952,311</td>
+        <td>39,166</td>
+        <td>2.9%</td>
       </tr></tbody>
   </table>
   <p class="note">第二组目标的页数不是按公式推的，而是每次调用后用 <code>vm.record</code> / <code>vm.accesses</code> 读真实写入集合，再按 128 槽一页去重统计。每个地址的余额槽由 keccak 散列决定，基本一槽一页，所以空投人数直接放大页成本。</p>
 
   <h2>结论</h2>
   <div class="note ok">
-    <strong>给这个函数的建议：</strong>gas limit 设为 <code>2,273,271</code>。
-    朴素的 3x 均值 buffer（3,406,191）会多付 49.8%；
-    而按 p99.9 附近取值，失败概率低于 0.2%。
+    <strong>给这个函数的建议：</strong>按输入规模查表，33–64 次写用 <code>1,855,180</code>。
+    这是共形分位数，留出集实测覆盖 100.0%；朴素的 3x 均值 buffer（4,378,193）多付 136.0%。
     在 Monad 上 gas 按 limit 扣费且不退，这部分就是纯损耗。
   </div>
   <p class="note">最坏情况出现在 count=64：跨页写入 64 页，对比同页 1 页。
-  峰值 gas 由输入结构（写入次数）和存储布局（页内/跨页）共同决定，均匀采样不保证碰到，所以先做最坏情况搜索再谈分布。以下分布与推荐值统一按测试网实测的每页 10,975 gas 折算。</p>
+  峰值 gas 由输入结构（写入次数）和存储布局（页内/跨页）共同决定，均匀采样不保证碰到，所以先做最坏情况搜索再谈分布。分布与认证上限全部来自测试网原生 estimateGas，不再混用本地 gas。</p>
 
-  <footer>ChaosGas · 确定性混沌 + 区间交换变换 + 蒙特卡洛 + 大数定律 · 输入可复现</footer>
+  <footer>ChaosGas · 条件共形预测 + 极值理论 + 低差异采样 · 输入可复现</footer>
 </div>
 </body>
 </html>
