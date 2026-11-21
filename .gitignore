@@ -53,3 +53,5 @@ Thumbs.db
 # ===== 本地工作区（不随仓库提交）=====
 .trae/
 任务说明.md
+.mojo/
+.claude/
