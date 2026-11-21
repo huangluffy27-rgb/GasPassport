@@ -1,9 +1,9 @@
 {
-  "name": "contend",
+  "name": "chaosgas",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Contend —— Monad 并行执行冲突诊断器",
+  "description": "ChaosGas —— Monad 合约 gas limit 统计体检",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",

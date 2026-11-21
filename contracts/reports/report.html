@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ChaosGas 报告 · Monad gas limit 体检</title>
+<style>
+  :root { --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --bg:#f8fafc; --accent:#2563eb; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:40px 24px; background:var(--bg); color:var(--ink);
+         font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC",sans-serif; line-height:1.65; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 28px; margin: 0 0 6px; letter-spacing:-0.02em; }
+  h2 { font-size: 19px; margin: 40px 0 12px; }
+  .sub { color: var(--muted); margin: 0 0 28px; font-size: 14px; }
+  .cards { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:16px 18px; }
+  .card .k { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+  .card .v { font-size:24px; font-weight:650; margin-top:4px; font-variant-numeric:tabular-nums; }
+  .card .n { font-size:12px; color:var(--muted); margin-top:4px; }
+  table { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  th, td { padding:10px 12px; text-align:right; font-size:13px; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; }
+  th:first-child, td:first-child { text-align:left; }
+  th { background:#f1f5f9; font-weight:600; color:#334155; }
+  tr:last-child td { border-bottom:none; }
+  .chart { width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:10px; padding:8px; }
+  .axis { font-size:11px; fill:#64748b; font-family:inherit; }
+  .note { background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:14px 16px; font-size:13px; color:#78350f; }
+  .ok { background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; }
+  code { background:#f1f5f9; padding:2px 5px; border-radius:4px; font-size:12px; }
+  footer { margin-top:48px; color:var(--muted); font-size:12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ChaosGas 报告</h1>
+  <p class="sub">Monad 合约函数的 gas limit 体检 · 生成于 2026-11-21 03:55:49 UTC · 样本 512 / 采样器</p>
+
+  <div class="cards">
+    <div class="card">
+      <div class="k">推荐 gas limit</div>
+      <div class="v">2,076,475</div>
+      <div class="n">经验覆盖 99.8%，留 5% 余量</div>
+    </div>
+    <div class="card">
+      <div class="k">3x 固定 buffer</div>
+      <div class="v">3,119,766</div>
+      <div class="n">相对推荐值多付 50.2%</div>
+    </div>
+    <div class="card">
+      <div class="k">跨页额外成本</div>
+      <div class="v">+509,610</div>
+      <div class="n">64 次写入，占同页基线 34.7%</div>
+    </div>
+  </div>
+
+  <h2>页成本：同一批写入，布局决定账单</h2>
+  <svg viewBox="0 0 680 280" class="chart" role="img" aria-label="页成本对比">
+    <line x1="56" y1="236" x2="656" y2="236" stroke="#e2e8f0"/>
+      <text x="48" y="240" text-anchor="end" class="axis">0k</text><line x1="56" y1="182" x2="656" y2="182" stroke="#e2e8f0"/>
+      <text x="48" y="186" text-anchor="end" class="axis">554k</text><line x1="56" y1="128" x2="656" y2="128" stroke="#e2e8f0"/>
+      <text x="48" y="132" text-anchor="end" class="axis">1,107k</text><line x1="56" y1="74" x2="656" y2="74" stroke="#e2e8f0"/>
+      <text x="48" y="78" text-anchor="end" class="axis">1,661k</text><line x1="56" y1="20" x2="656" y2="20" stroke="#e2e8f0"/>
+      <text x="48" y="24" text-anchor="end" class="axis">2,215k</text><rect x="87" y="229.5406931868543" width="26" height="6.459306813145702" fill="#94a3b8" rx="2"/><rect x="119" y="229.53425679748815" width="26" height="6.465743202511845" fill="#2563eb" rx="2"/><text x="116" y="260" text-anchor="middle" class="axis">1</text><rect x="207" y="214.35178949322645" width="26" height="21.64821050677355" fill="#94a3b8" rx="2"/><rect x="239" y="208.82410128030693" width="26" height="27.175898719693066" fill="#2563eb" rx="2"/><text x="236" y="260" text-anchor="middle" class="axis">8</text><rect x="327" y="196.9930424147946" width="26" height="39.00695758520541" fill="#94a3b8" rx="2"/><rect x="359" y="185.15535211781412" width="26" height="50.84464788218588" fill="#2563eb" rx="2"/><text x="356" y="260" text-anchor="middle" class="axis">16</text><rect x="447" y="162.2755482579309" width="26" height="73.7244517420691" fill="#94a3b8" rx="2"/><rect x="479" y="137.81785379282846" width="26" height="98.18214620717154" fill="#2563eb" rx="2"/><text x="476" y="260" text-anchor="middle" class="axis">32</text><rect x="567" y="92.84055994420353" width="26" height="143.15944005579647" fill="#94a3b8" rx="2"/><rect x="599" y="43.14285714285717" width="26" height="192.85714285714283" fill="#2563eb" rx="2"/><text x="596" y="260" text-anchor="middle" class="axis">64</text>
+    <text x="56" y="278" class="axis">写入次数（同页 vs 跨页，单位：千 gas）</text>
+  </svg>
+  <table>
+    <thead><tr><th>写入次数</th><th>同页页数</th><th>同页 gas（建模）</th><th>跨页页数</th><th>跨页 gas（建模）</th><th>差额</th></tr></thead>
+    <tbody><tr>
+        <td>1</td>
+        <td>1</td>
+        <td>66,235</td>
+        <td>1</td>
+        <td>66,301</td>
+        <td>+66</td>
+      </tr><tr>
+        <td>8</td>
+        <td>1</td>
+        <td>221,985</td>
+        <td>8</td>
+        <td>278,667</td>
+        <td>+56,682</td>
+      </tr><tr>
+        <td>16</td>
+        <td>1</td>
+        <td>399,985</td>
+        <td>16</td>
+        <td>521,371</td>
+        <td>+121,386</td>
+      </tr><tr>
+        <td>32</td>
+        <td>1</td>
+        <td>755,985</td>
+        <td>32</td>
+        <td>1,006,779</td>
+        <td>+250,794</td>
+      </tr><tr>
+        <td>64</td>
+        <td>1</td>
+        <td>1,467,985</td>
+        <td>64</td>
+        <td>1,977,595</td>
+        <td>+509,610</td>
+      </tr></tbody>
+  </table>
+  <p class="note">口径：EVM 执行 gas 由 Foundry 实测；Monad 页成本按 MIP-8 参数建模（每页首访 8,100 gas、同页后续 100 gas），相对同页基线每多一页加 8,000。这不是链上实测值，正式提交前应在 Monad 测试网复核。</p>
+
+  <h2>采样收敛：IET 比均匀随机更快贴近真值</h2>
+  <p class="sub">灰=同页，蓝=跨页；线色：<span style="color:#dc2626">uniform</span> / <span style="color:#2563eb">iet</span> / <span style="color:#059669">logistic</span></p>
+  <svg viewBox="0 0 680 280" class="chart" role="img" aria-label="收敛曲线">
+    <line x1="56" y1="236" x2="656" y2="236" stroke="#e2e8f0"/>
+      <text x="48" y="240" text-anchor="end" class="axis">0.0%</text><line x1="56" y1="128" x2="656" y2="128" stroke="#e2e8f0"/>
+      <text x="48" y="132" text-anchor="end" class="axis">9.7%</text><line x1="56" y1="20" x2="656" y2="20" stroke="#e2e8f0"/>
+      <text x="48" y="24" text-anchor="end" class="axis">19.5%</text><path d="M 322.7 48.2 L 389.3 216.2 L 456.0 230.5 L 522.7 232.9 L 589.3 199.1 L 656.0 236.0" fill="none" stroke="#dc2626" stroke-width="2"/><path d="M 322.7 216.4 L 389.3 230.8 L 456.0 227.8 L 522.7 235.2 L 589.3 234.1 L 656.0 236.0" fill="none" stroke="#2563eb" stroke-width="2"/><path d="M 322.7 196.8 L 389.3 215.0 L 456.0 202.6 L 522.7 231.0 L 589.3 235.7 L 656.0 236.0" fill="none" stroke="#059669" stroke-width="2"/><text x="322.66666666666663" y="260" text-anchor="middle" class="axis">16</text><text x="389.33333333333337" y="260" text-anchor="middle" class="axis">32</text><text x="456" y="260" text-anchor="middle" class="axis">64</text><text x="522.6666666666667" y="260" text-anchor="middle" class="axis">128</text><text x="589.3333333333333" y="260" text-anchor="middle" class="axis">256</text><text x="656" y="260" text-anchor="middle" class="axis">512</text>
+    <text x="56" y="278" class="axis">样本数 N（对数轴）· 相对全样本均值的误差</text>
+  </svg>
+  <p class="sub">N=16 时，IET 的相对误差是 1.8%，均匀随机是 16.9%。</p>
+  <table>
+    <thead><tr><th>采样器</th><th>N</th><th>均值</th><th>p50</th><th>p95</th><th>p99</th><th>max</th><th>均值 95% CI</th><th>N=64 误差</th></tr></thead>
+    <tbody><tr>
+        <td>uniform</td>
+        <td>512</td>
+        <td>1,032,910</td>
+        <td>1,037,117</td>
+        <td>1,886,581</td>
+        <td>1,977,595</td>
+        <td>1,977,595</td>
+        <td>48,788</td>
+        <td>0.5%</td>
+      </tr><tr>
+        <td>iet</td>
+        <td>512</td>
+        <td>1,021,000</td>
+        <td>1,021,948</td>
+        <td>1,886,581</td>
+        <td>1,977,595</td>
+        <td>1,977,595</td>
+        <td>48,592</td>
+        <td>0.7%</td>
+      </tr><tr>
+        <td>logistic</td>
+        <td>512</td>
+        <td>1,065,855</td>
+        <td>1,097,793</td>
+        <td>1,977,595</td>
+        <td>1,977,595</td>
+        <td>1,977,595</td>
+        <td>57,985</td>
+        <td>3.0%</td>
+      </tr></tbody>
+  </table>
+
+  <h2>结论</h2>
+  <div class="note ok">
+    <strong>给这个函数的建议：</strong>gas limit 设为 <code>2,076,475</code>。
+    朴素的 3x 均值 buffer（3,119,766）会多付 50.2%；
+    而按 p99.9 附近取值，失败概率低于 0.2%。
+    在 Monad 上 gas 按 limit 扣费且不退，这部分就是纯损耗。
+  </div>
+  <p class="note">最坏情况出现在 count=64：跨页写入 64 页，对比同页 1 页。
+  峰值 gas 由输入结构（写入次数）和存储布局（页内/跨页）共同决定，均匀采样不保证碰到，所以先做最坏情况搜索再谈分布。</p>
+
+  <footer>ChaosGas · 确定性混沌 + 区间交换变换 + 蒙特卡洛 + 大数定律 · 输入可复现</footer>
+</div>
+</body>
+</html>

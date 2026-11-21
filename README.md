@@ -1,66 +1,79 @@
-# Monad Product Lab
+# ChaosGas
 
-面向 Monad 生态的产品原型仓库。当前方向已选定 **Contend**（并行执行冲突诊断器），正在实现诊断器内核；三个候选方向的完整论证见 [docs/方案对比.md](docs/方案对比.md)。
+给 Monad 合约的每个函数算一个**有统计依据的 gas limit**。面向高频合约、全链游戏、Agent 支付这类一天几十万笔调用的项目：limit 设高每一笔都在漏钱，设低整笔失败还照扣。
 
-## 候选方向
+> 一句话：用确定性混沌、区间交换变换、蒙特卡洛与大数定律，把「gas 该设多少」从拍脑袋变成可复现的统计结论。
 
-| # | 代号 | 一句话 | 类型 |
-|---|------|--------|------|
-| 1 | **Contend** | 并行执行冲突诊断 + 合约改造建议 + CI 并行度门禁 | 开发者工具 |
-| 2 | **StreamPay** | 面向 AI Agent / API 的按调用流式微支付 | 支付协议 |
-| 3 | **FairBatch** | 加密订单流 + 亚秒批量拍卖，把 MEV 收益还给 LP | 交易基础设施 |
+## 问题
 
-每个方向的「问题定义 / 方案 / 为什么必须是 Monad / 创新点 / MVP 边界 / 验证指标 / 风险」见 [docs/方案对比.md](docs/方案对比.md)。
+Monad 上有两条和以太坊不同的成本规则：
 
-## 仓库结构
+1. **按 `gas_limit` 扣费，不退多余 gas**。limit 写 3,000,000、实际用 200,000，差额照扣。
+2. **存储按 128 个连续槽一页预热**（MIP-8）：一页首次访问 8,100 gas，同页后续 100 gas，跨页再付一次。状态布局直接决定账单。
 
-```
-.
-├── contracts/        # Foundry 工程：NaiveToken / ShardedToken 对照合约
-├── app/              # TypeScript：诊断器 CLI（脚手架）
-├── scripts/          # 部署与运维脚本
-├── docs/             # 方案与设计文档
-├── .github/          # Issue / PR 模板
-└── .vscode/          # 推荐的编辑器配置
-```
+开发者通常按「均值 × 3」拍一个固定 buffer，既没有覆盖保证，也不区分输入结构和存储布局。
 
-## 对照合约
+## 做法
 
-| 合约 | 状态布局 | 1000 笔领取时的冲突 |
-|---|---|---|
-| `NaiveToken` | 资金池余额是单个槽 `balanceOf[address(this)]` | 全部撞在同一槽，串行 |
-| `ShardedToken` | 资金池拆成 8 个槽 `poolBalance[shard]` | 最多 8 路并行 |
+1. **采样**：三种可复现的输入生成器，同一个种子在任何机器上跑出同一组序列
+   - `uniform`：keccak PRNG 均匀随机（基线）
+   - `iet`：黄金比例低差异序列 + 区间交换变换（IET），小样本下更快铺满区间
+   - `logistic`：`x ← 3.99·x·(1−x)` 确定性混沌映射
+2. **实测**：在 Foundry 里对每个输入真实调用目标函数，用 `gasleft()` 记录 EVM 执行 gas
+3. **建模**：按 MIP-8 参数补上页成本（每多一页 +8,000 gas）
+4. **统计**：蒙特卡洛估计分布，用 N 个样本的最大值作为经验分位数上界（覆盖约 `1 − 1/(N+1)`），再留 5% 余量给出推荐 limit
+5. **报告**：输出分位数、收敛曲线、页成本对照、推荐值与朴素 3x buffer 的差额
 
-两者对外语义一致（`claim` / `transfer` / `balanceOf`），差别只在资金池状态的布局，用来做「同一业务、不同并行度」的对照。
+## 本仓库的实测结果
 
-## 本地开发
+样本 512 / 采样器，目标合约 `PageWriter`：
 
-合约：
+| 指标 | 数值 |
+|---|---|
+| 最坏情况（64 次写）同页 | 1,467,985 gas |
+| 最坏情况（64 次写）跨页 | 1,977,595 gas |
+| 跨页额外成本 | +509,610 gas（+34.7%） |
+| 推荐 gas limit | 2,076,475（经验覆盖 99.8%） |
+| 朴素 3x buffer | 3,119,766（多付 50.2%） |
+| N=16 收敛误差 | IET 1.76% vs 均匀随机 16.93% |
+
+完整报告：[contracts/reports/report.html](contracts/reports/report.html)，预览图 [docs/report-preview.png](docs/report-preview.png)。
+
+## 快速开始
 
 ```bash
+# 1. 合约与采样 campaign（首次需 forge install foundry-rs/forge-std）
 cd contracts
-forge install foundry-rs/forge-std   # 首次拉取依赖
-forge build
-forge test
-```
+forge test --match-path test/ChaosGas.t.sol
 
-诊断器 CLI：
-
-```bash
-cd app
+# 2. 分析与报告
+cd ../app
 npm install
 npm run build
 node dist/index.js
 ```
 
-## 状态
+报告输出到 `contracts/reports/report.html`。
 
-- [x] 仓库骨架（README / LICENSE / CONTRIBUTING / Issue 模板）
-- [x] 方向选型（Contend）
-- [x] 技术栈初始化（Foundry + TypeScript）
-- [x] 对照合约与测试（NaiveToken / ShardedToken，9 个测试通过）
-- [ ] 诊断器内核：采集 SLOAD / SSTORE，构建冲突图，计算并行度
-- [ ] 演示与提交材料
+## 仓库结构
+
+```
+contracts/
+├── src/PageWriter.sol      # 同页连续写 vs 跨页散布写
+├── src/Chaos.sol           # uniform / IET / logistic 三种采样器
+├── test/ChaosGas.t.sol     # 采样 campaign，输出 CSV
+└── reports/                # 采样数据与 HTML 报告
+app/
+├── src/analyze.ts          # 分位数、收敛、页成本建模
+├── src/report.ts           # 自包含 HTML 报告
+└── src/index.ts            # CLI
+```
+
+## 口径与限制
+
+- EVM 执行 gas 由 Foundry 实测；**Monad 页成本是按 MIP-8 参数建模**，不是链上实测值，正式使用前应在 Monad 测试网复核。
+- 当前 demo 的目标函数是 `PageWriter.writeScattered`，页数随写入次数线性增长；接入真实合约时，页数应从存储访问轨迹里统计，而不是按公式推断。
+- 经验分位数依赖样本量：N=512 时 max 只覆盖约 99.8%，不要把它当成 99.99% 的保证。
 
 ## 许可
 

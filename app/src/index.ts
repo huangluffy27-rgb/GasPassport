@@ -1,27 +1,52 @@
 #!/usr/bin/env node
-/**
- * Contend 入口（脚手架）。
- *
- * 后续要接的三步：
- *   1. 读取 contracts/out 的编译产物
- *   2. 本地 EVM 步进执行交易，采集 SLOAD / SSTORE 访问集合
- *   3. 构建冲突图，输出并行度报告
- */
+import { writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { buildInsight, readPageCost, readSamples, summarize } from "./analyze.js";
+import { renderReport } from "./report.js";
 
 function main(): void {
   const args = process.argv.slice(2);
-
   if (args.includes("--version") || args.includes("-v")) {
-    console.log("contend 0.1.0");
+    console.log("chaosgas 0.1.0");
     return;
   }
 
-  console.log("contend 0.1.0 —— 并行执行冲突诊断器（脚手架）");
+  const flag = args.find((a) => a.startsWith("--reports="));
+  const dir = flag
+    ? resolve(flag.slice("--reports=".length))
+    : resolve(fileURLToPath(new URL("../../contracts/reports", import.meta.url)));
+
+  const samples = readSamples(dir);
+  const pages = readPageCost(dir);
+  const samplers = [...new Set(samples.map((s) => s.sampler))];
+  const stats = samplers.map((s) => summarize(s, samples));
+  const insight = buildInsight(pages, stats);
+
+  const now = new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC";
+  const html = renderReport(stats, pages, insight, now);
+  const outPath = resolve(dir, "report.html");
+  writeFileSync(outPath, html, "utf8");
+
+  // GitHub Pages 使用的副本
+  const docsPath = resolve(fileURLToPath(new URL("../../docs/index.html", import.meta.url)));
+  writeFileSync(docsPath, html, "utf8");
+
+  console.log("ChaosGas · Monad 合约 gas limit 体检");
   console.log("");
-  console.log("用法：");
-  console.log("  contend analyze <合约或场景>   分析存储访问冲突并输出并行度报告");
+  for (const s of stats) {
+    console.log(
+      `${s.sampler.padEnd(9)} N=${s.n}  mean=${Math.round(s.mean)}  p99=${Math.round(s.p99)}  max=${Math.round(s.max)}`,
+    );
+  }
   console.log("");
-  console.log("当前状态：分析器尚未实现，先用 contracts/ 下的 NaiveToken / ShardedToken 做对照。");
+  console.log(`最坏情况 count=${insight.countMax}：同页 ${Math.round(insight.contiguousModeled)} gas，跨页 ${Math.round(insight.scatteredModeled)} gas`);
+  console.log(`跨页额外成本：+${Math.round(insight.pageOverhead)} gas（+${(insight.pageOverheadPct * 100).toFixed(1)}%）`);
+  console.log(`推荐 gas limit：${insight.recommendedLimit}（经验覆盖 ${((insight.coverage * 100).toFixed(1))}%）`);
+  console.log(`3x 固定 buffer：${insight.naiveBuffer}，多付 ${(insight.bufferOverpayPct * 100).toFixed(1)}%`);
+  console.log("");
+  console.log(`报告：${outPath}`);
 }
 
 main();

@@ -1,0 +1,153 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+export type Sample = {
+  sampler: string;
+  iter: number;
+  count: number;
+  gasEvm: number;
+  pages: number;
+  gasMonad: number;
+};
+
+export type PageRow = {
+  count: number;
+  pagesContiguous: number;
+  pagesScattered: number;
+  gasContiguous: number;
+  gasScattered: number;
+};
+
+export type SamplerStats = {
+  sampler: string;
+  n: number;
+  mean: number;
+  p50: number;
+  p95: number;
+  p99: number;
+  max: number;
+  stdev: number;
+  ci95: number;
+  convergence: { n: number; error: number }[];
+};
+
+/** Monad MIP-8：每页首访 8,100 gas，同页后续 100 gas；相对同页基线多一页多付 8,000。 */
+export const PAGE_EXTRA = 8_000;
+
+function parseCsv(text: string): string[][] {
+  return text
+    .trim()
+    .split(/\r?\n/)
+    .slice(1)
+    .filter((line) => line.length > 0)
+    .map((line) => line.split(","));
+}
+
+export function readSamples(dir: string): Sample[] {
+  const rows = parseCsv(readFileSync(join(dir, "gas_samples.csv"), "utf8"));
+  return rows.map((cols) => ({
+    sampler: cols[0],
+    iter: Number(cols[1]),
+    count: Number(cols[2]),
+    gasEvm: Number(cols[3]),
+    pages: Number(cols[4]),
+    gasMonad: Number(cols[5]),
+  }));
+}
+
+export function readPageCost(dir: string): PageRow[] {
+  const rows = parseCsv(readFileSync(join(dir, "page_cost.csv"), "utf8"));
+  return rows.map((cols) => ({
+    count: Number(cols[0]),
+    pagesContiguous: Number(cols[1]),
+    pagesScattered: Number(cols[2]),
+    gasContiguous: Number(cols[3]),
+    gasScattered: Number(cols[4]),
+  }));
+}
+
+export function quantile(sorted: number[], q: number): number {
+  if (sorted.length === 0) return 0;
+  const pos = (sorted.length - 1) * q;
+  const lower = Math.floor(pos);
+  const upper = Math.ceil(pos);
+  if (lower === upper) return sorted[lower];
+  return sorted[lower] + (sorted[upper] - sorted[lower]) * (pos - lower);
+}
+
+export function mean(values: number[]): number {
+  return values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+export function stdev(values: number[], avg = mean(values)): number {
+  if (values.length < 2) return 0;
+  const variance = values.reduce((acc, v) => acc + (v - avg) ** 2, 0) / (values.length - 1);
+  return Math.sqrt(variance);
+}
+
+const CHECKPOINTS = [16, 32, 64, 128, 256, 512];
+
+export function summarize(sampler: string, samples: Sample[]): SamplerStats {
+  // 收敛曲线必须按 iteration 顺序，分位数才排序
+  const ordered = samples.filter((s) => s.sampler === sampler).map((s) => s.gasMonad);
+  const monad = [...ordered].sort((a, b) => a - b);
+  const avg = mean(monad);
+  const sd = stdev(monad, avg);
+  const full = avg;
+  const convergence = CHECKPOINTS.filter((n) => n <= ordered.length).map((n) => {
+    const partial = mean(ordered.slice(0, n));
+    return { n, error: Math.abs(partial - full) / full };
+  });
+
+  return {
+    sampler,
+    n: monad.length,
+    mean: avg,
+    p50: quantile(monad, 0.5),
+    p95: quantile(monad, 0.95),
+    p99: quantile(monad, 0.99),
+    max: monad[monad.length - 1],
+    stdev: sd,
+    // 均值的 95% 置信区间半宽（正态近似）
+    ci95: 1.96 * (sd / Math.sqrt(monad.length)),
+    convergence,
+  };
+}
+
+export type Insight = {
+  countMax: number;
+  worstCase: PageRow;
+  contiguousModeled: number;
+  scatteredModeled: number;
+  pageOverhead: number;
+  pageOverheadPct: number;
+  recommendedLimit: number;
+  naiveBuffer: number;
+  bufferOverpayPct: number;
+  coverage: number;
+};
+
+export function buildInsight(pages: PageRow[], stats: SamplerStats[]): Insight {
+  const worstCase = pages.reduce((a, b) => (b.count > a.count ? b : a));
+  const contiguousModeled = worstCase.gasContiguous + (worstCase.pagesContiguous - 1) * PAGE_EXTRA;
+  const scatteredModeled = worstCase.gasScattered + (worstCase.pagesScattered - 1) * PAGE_EXTRA;
+  const pageOverhead = scatteredModeled - contiguousModeled;
+
+  const maxGas = Math.max(...stats.map((s) => s.max));
+  const avgGas = mean(stats.map((s) => s.mean));
+  const n = stats[0]?.n ?? 1;
+
+  return {
+    countMax: worstCase.count,
+    worstCase,
+    contiguousModeled,
+    scatteredModeled,
+    pageOverhead,
+    pageOverheadPct: pageOverhead / contiguousModeled,
+    // 经验分位数：N 个样本的最大值覆盖约 1 - 1/(N+1)
+    recommendedLimit: Math.ceil(maxGas * 1.05),
+    naiveBuffer: Math.ceil(avgGas * 3),
+    bufferOverpayPct: (avgGas * 3 - maxGas * 1.05) / (maxGas * 1.05),
+    coverage: 1 - 1 / (n + 1),
+  };
+}
