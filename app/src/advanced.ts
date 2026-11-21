@@ -201,7 +201,7 @@ export function layoutAdvice(): LayoutAdvice {
         current: "mapping(address => uint256)：每个地址的槽由 keccak 散列，约一槽一页",
         suggestion: "改成「累计 Merkle 根 + 用户自取」：每批只写 1 个根，领取时再写位图",
         pages: "32 → 1",
-        gas: "写入端 952,311 → 约 60k；但实测每次领取 49,432（6 层 keccak），64 人合计 3.49M，比页对齐 1.53M 更贵",
+        gas: "keccak 版 64 人合计 3.49M（更贵）；换 SHA-256 + 批量领取后 92 万，比页对齐单轮 135 万省 32%",
       },
       {
         contract: "通用热状态",
@@ -214,7 +214,7 @@ export function layoutAdvice(): LayoutAdvice {
     notes: [
       "128 槽 × 32B = 4KB，与 OS 页 / SSD 页 / NVMe 随机读同粒度。",
       "页对齐同时降低 gas 与状态 I/O：64 页散写每次调用触达 256KB，对齐后 4KB。",
-      "改映射为 Merkle 根会改变业务语义；且 Monad 的 keccak 约 5 千 gas，6 层证明反而更贵（实测 64 人合计 3.49M vs 页对齐 1.53M）。",
+      "改映射为 Merkle 根会改变业务语义；Monad 的 keccak 约 5 千 gas，直接做更贵（3.49M），换 SHA-256 并批量领取后才降到 92 万。",
     ],
   };
 }

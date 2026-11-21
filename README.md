@@ -100,14 +100,15 @@
 | 档 | 做法 | 成本 | 适用 |
 |---|---|---|---|
 | ① push + 页对齐（已实现） | 散列映射 → packed `Entry[]` | 部署 183,522 + 空投 1,349,065 = **1,532,587** | 需要链上按地址查余额；Monad 上最便宜 |
-| ② pull + Merkle + 位图（`ClaimAirdrop`） | 只存根与领取位图，用户自领 | 团队 310,298；用户 3,181,103；合计 **3,491,401** | 团队不愿逐地址写；但 Monad 上总成本更高 |
+| ② pull + Merkle + 位图 | 只存根与领取位图，用户自领 | keccak 版 3,491,401；**SHA-256 + 批量领取 1,435,892** | 团队不愿逐地址写；SHA 批量版才划算 |
 | ③ immutable + SSTORE2 | 名单写进字节码 | 未实测（按 200 gas/字节估算约 13 万） | 一次性、只读名单 |
 
-**为什么领取制在 Monad 上反而更贵**（[`ClaimAirdrop`](contracts/src/ClaimAirdrop.sol)，[实测脚本](scripts/measure_claim.mjs)，[CSV](contracts/reports/claim_airdrop.csv)）：
+**领取制：哈希与批量决定成败**（[`ClaimAirdrop`](contracts/src/ClaimAirdrop.sol) / [`ClaimManySHA`](contracts/src/ClaimManySHA.sol)，[keccak 脚本](scripts/measure_claim.mjs) / [SHA 脚本](scripts/measure_claim_many.mjs)）：
 
-- 一次领取 49,432 gas（首位 66,887）；反推每次 `keccak256` 约 5 千 gas，6 层证明 ≈ 3 万，再加两次冷 SLOAD 16,200 与位图写入；
-- 同样 64 人，push + 页对齐合计 153 万，领取制合计 349 万，贵 **2.3×**；
-- 所以 Solana 上“状态压缩便宜 1000×”的经验不能直接搬：那边哈希便宜、账户存储贵；Monad 把哈希重定价了。
+- **keccak 版**：一次领取 49,432 gas（首位 66,887）；反推 `keccak256` 约 5 千 gas/次，6 层证明 ≈ 3 万，64 人合计 3,491,401，比 push 贵 2.3×。
+- **SHA-256 版**：预编译实测约 400–800 gas/次。部署 513,756；64 人批量领取一笔 922,136（人均 14,408）；合计 **1,435,892**，比 push 的 1,532,587 省 6.3%。
+- **合约复用时**（只算每轮）：922,136 vs 1,349,065，省 **31.6%**；批量越小越贵——8 人 168,530、16 人 276,085、32 人 491,453。
+- 代价：用户要主动领取，calldata 22,788 字节；团队侧写入为 0。Solana 的“状态压缩”经验能用，但前提是换掉被重定价的 keccak，并把领取批量提交。
 
 **外部趋势**：以太坊 Glamsterdam 的 [EIP-8037](https://www.tryethernal.com/blog/eip-8037-multidimensional-gas-metering) 把状态创建按 1,530 gas/字节单独计价（新槽约 9.8 万状态费），Monad 的 MIP-8 `STATE_GROWTH 17,000` 是同一方向——状态创建只会更贵，所以“少建槽”的布局建议长期有效。
 

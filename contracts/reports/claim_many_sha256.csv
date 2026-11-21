@@ -1,0 +1,7 @@
+item,gas,calldata_bytes
+deploy,513756,2091
+claim_single,71012,356
+claim_many_8,168530,3076
+claim_many_16,276085,5892
+claim_many_32,491453,11524
+claim_many_64,922136,22788
