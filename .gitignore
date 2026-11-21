@@ -1,0 +1,55 @@
+# ===== 依赖 =====
+node_modules/
+pnpm-lock.yaml.bak
+
+# ===== 构建产物 =====
+dist/
+build/
+out/
+cache/
+coverage/
+*.tsbuildinfo
+
+# ===== Foundry =====
+broadcast/
+# 依赖本地安装，不入库；新克隆后执行 forge install foundry-rs/forge-std
+lib/
+
+# ===== 环境变量与密钥 =====
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ===== Python（脚本工具）=====
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ===== 类型生成 / 测试产物 =====
+typechain-types/
+.typechain/
+.eslintcache
+lcov.info
+gas-report.txt
+.gas-snapshot
+.openzeppelin/
+
+# ===== 日志与临时文件 =====
+*.log
+logs/
+tmp/
+.tmp/
+
+# ===== 编辑器 / 系统 =====
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+.vscode/*.local.json
+
+# ===== 本地工作区（不随仓库提交）=====
+.trae/
+任务说明.md

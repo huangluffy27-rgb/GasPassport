@@ -1,0 +1,16 @@
+{
+  "name": "contend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Contend —— Monad 并行执行冲突诊断器",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.7.0"
+  }
+}
