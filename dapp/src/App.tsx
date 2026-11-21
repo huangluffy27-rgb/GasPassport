@@ -156,8 +156,9 @@ function Overview({ setTab }: { setTab: (t: Tab) => void }) {
           可认证的 gas 预算表
         </h1>
         <p>
-          1,536 条测试网原生采样，按输入规模分桶做条件共形预测。不是又一个 gas 估算器——它补的是
-          <code>eth_estimateGas</code> 覆盖不到的部署前审计、批量代付、输入后定与状态漂移。
+          某交易所一次归集 1 万个地址：散列布局多付 8,300 万 gas，改成页对齐后省 28%。这类账现在能提前算出来——
+          1,536 条测试网原生采样、按输入分桶的 99% 上限，补的是 <code>eth_estimateGas</code>{" "}
+          覆盖不到的部署前审计、批量代付与状态漂移。
         </p>
         <div className="hero-actions">
           <button className="btn lg" onClick={() => setTab("budget")}>
@@ -173,11 +174,29 @@ function Overview({ setTab }: { setTab: (t: Tab) => void }) {
         <Stat k="覆盖保证" v="99%" n="条件共形，留出集实测 100%" />
         <Stat k="每页增量" v={fmt(STATS.pageExtra)} n="Monad 测试网实测 gas" />
         <Stat k="页对齐收益" v="28.3%" n="64 人空投，实测 gas 降幅" />
-        <Stat k="真实交易" v="6 笔" n="校准 estimateGas 与回执语义" />
+        <Stat k="真实交易" v="12 笔" n="三轮空投 / 部署，链上可查" />
       </section>
 
       <section className="panel">
-        <h2>为什么不是直接调 estimateGas？</h2>
+        <h2>现在大家怎么做，差在哪</h2>
+        <p className="muted">我们不替代 estimateGas，只补它和本地 gas report 都到不了的地方。</p>
+        <div className="why">
+          {[
+            ["estimateGas × 1.2", "单笔、已部署、状态确定时能算", "没部署算不了；没有覆盖保证，多付不退"],
+            ["Foundry gas report", "开发期批量跑、可做回归", "本地 EVM 冷读按 2,100，Monad 是 8,100，数字系统性偏低"],
+            ["GasPassport", "只补它俩到不了的四种情况，单笔仍推荐 estimateGas", "部署前 + 输入族 + 99% 覆盖 + Monad 原生口径"],
+          ].map(([a, b, c]) => (
+            <div className="why-row" key={a}>
+              <div className="why-k">{a}</div>
+              <div className="why-bad">{b}</div>
+              <div className="why-good">{c}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel">
+        <h2>estimateGas 到不了的四种情况</h2>
         <p className="muted">
           我们自己的真实交易校准证明：<code>estimateGas</code> 就是最小可行 limit。所以这个产品不跟它抢单笔预估，只补四类它到不了的场景。
         </p>
