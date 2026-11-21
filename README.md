@@ -17,8 +17,11 @@
 
 ```bash
 node scripts/prebudget_api.mjs          # 本地 API → http://127.0.0.1:8787
+GASPASSPORT_API_KEY=xxx node scripts/prebudget_api.mjs   # 开启 x-api-key 鉴权
+
 node scripts/prebudget_api.mjs --artifact contracts/out/BatchAirdrop.sol/BatchAirdrop.json \
-  --function airdrop --min 1 --max 64 --step 8      # CLI 模式
+  --function airdrop --min 1 --max 64 --step 8      # 函数预算
+node scripts/prebudget_api.mjs --batch 10000,21079  # 拆笔：1 万人、每人 21,079 gas
 ```
 
 托管服务尚未上线；本地 API 与 CLI 已可跑，需要 Node 与 `viem`（仓库根目录已装）。在线 dApp 仍是静态原型，只内置两个对照合约。
@@ -29,13 +32,20 @@ POST /v1/deploy-budget
 → { "limit99": 183522, "limit999": 242268, "certified": true, "codeHash": "0x..." }
 
 POST /v1/budget
-{ "chainId": 10143, "artifact": { ... }, "function": "airdrop", "inputRange": [1, 64], "coverage": 0.99 }
-→ { "buckets": [...], "support": [1, 64], "coverage": 0.99, "samples": 1536, "certificate": { ... } }
+{ "chainId": 10143, "artifact": { ... }, "function": "airdrop", "min": 1, "max": 64, "step": 8 }
+→ { "buckets": [...], "support": [1, 64], "coverage": 0.99, "samples": 8, "codeHash": "0x...", "certified": false }
+
+POST /v1/batch-plan
+{ "totalUsers": 10000, "perUserGas": 21079 }
+→ { "capacityPerTx": 1422, "chunks": 8, "totalGas": 210958000 }
 ```
 
-- 导出的 `gas-budget.json` 已带 `schemaVersion / chainId / method / support / coverage / certified / extrapolated` 字段，可直接入库；
-- 认证只覆盖 `support` 区间，超出标 `extrapolated`，不冒充认证；
-- 目前只能跑仓库内两个对照合约；接自己的合约需要改采样脚本的 artifacts 路径，API 版会自动解析 artifact。
+- **拆笔**：按单笔 30M cap 自动算每笔容量、笔数与总预算（1 万人 → 1,422/笔、8 笔、2.11 亿 gas）；
+- **缓存**：函数预算以 `codeHash + 函数 + 区间 + 采样参数` 为键，内存缓存 5 分钟，第二次调用带 `cached: true`；
+- **鉴权**：设置 `GASPASSPORT_API_KEY` 后必须带 `x-api-key`，否则 401；目前只有“开关”，还没有计量与配额；
+- **可审计字段**：`schemaVersion / chainId / method / support / coverage / certified / codeHash / extrapolated`；
+- **边界**：只支持长度可变的 `address[]` 参数；采样密度不足时 `certified: false`；认证只覆盖 `support` 区间，超出标 `extrapolated`；
+- 目前只能跑仓库内两个对照合约的 dApp 演示；API/CLI 可接任意 Foundry artifact。
 
 一个真实例子，32 人空投：
 

@@ -4,9 +4,10 @@
 // 部署：node scripts/prebudget_api.mjs --deploy out/X.json --args 0x
 import { readFileSync } from "node:fs";
 import http from "node:http";
-import { deployBudget, functionBudget } from "./budget_core.mjs";
+import { batchPlan, deployBudget, functionBudget } from "./budget_core.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
+const API_KEY = process.env.GASPASSPORT_API_KEY ?? "";
 
 function readArtifact(path) {
   return JSON.parse(readFileSync(path, "utf8"));
@@ -20,6 +21,12 @@ const argOf = (name, fallback) => {
 async function runCli() {
   const artifactPath = argOf("artifact");
   const deployPath = argOf("deploy");
+  const batch = argOf("batch");
+  if (batch) {
+    const [totalUsers, perUserGas] = batch.split(",").map(Number);
+    console.log(JSON.stringify(batchPlan({ totalUsers, perUserGas }), null, 2));
+    return true;
+  }
   if (deployPath) {
     const artifact = readArtifact(deployPath);
     const bytecode = artifact.bytecode?.object ?? artifact.bytecode;
@@ -72,8 +79,15 @@ function readBody(req) {
 async function startServer() {
   const server = http.createServer(async (req, res) => {
     if (req.method === "OPTIONS") return send(res, 204, {});
+    console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
     try {
       if (req.method === "GET" && req.url === "/health") return send(res, 200, { ok: true });
+      if (req.method === "POST" && API_KEY && req.headers["x-api-key"] !== API_KEY) {
+        return send(res, 401, { error: "unauthorized" });
+      }
+      if (req.method === "POST" && req.url === "/v1/batch-plan") {
+        return send(res, 200, batchPlan(await readBody(req)));
+      }
       if (req.method === "POST" && req.url === "/v1/deploy-budget") {
         const body = await readBody(req);
         const bytecode = body.bytecode ?? body.artifact?.bytecode?.object ?? body.artifact?.bytecode;
@@ -106,6 +120,8 @@ async function startServer() {
     console.log(`GET  /health`);
     console.log(`POST /v1/deploy-budget  { bytecode, constructorArgs? }`);
     console.log(`POST /v1/budget         { artifact, function, min?, max?, step?, samplesPerInput? }`);
+    console.log(`POST /v1/batch-plan     { totalUsers, perUserGas, txGasCap?, txOverhead? }`);
+    console.log(API_KEY ? "auth: x-api-key required" : "auth: open (set GASPASSPORT_API_KEY to enable)");
   });
 }
 
