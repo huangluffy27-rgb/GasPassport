@@ -49,6 +49,11 @@ async function estimate(code: string, data: string, to = TO): Promise<number> {
   return Number(BigInt(hex));
 }
 
+async function estimateDeploy(data: string, from: string): Promise<number> {
+  const hex = await rpc<string>("eth_estimateGas", [{ from, data, gasPrice: "0x0", value: "0x0" }]);
+  return Number(BigInt(hex));
+}
+
 export default function App() {
   const [tab, setTab] = useState<Tab>("overview");
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -360,14 +365,16 @@ function AlignPanel({
     setSteps(labels.map((label) => ({ label, state: "idle" })));
     try {
       setStep(0, "run");
-      const b = await wallet.sendTransaction({ data: BATCH_AIRDROP.bytecode, gas: 1_200_000 });
+      const deployB = await estimateDeploy(BATCH_AIRDROP.bytecode, wallet.address);
+      const b = await wallet.sendTransaction({ data: BATCH_AIRDROP.bytecode, gas: Math.ceil(deployB * 1.1) });
       if (!b.contractAddress) throw new Error("部署失败：没有拿到合约地址");
-      setStep(0, "ok", b.contractAddress);
+      setStep(0, "ok", `${b.contractAddress} · limit ${fmt(Math.ceil(deployB * 1.1))}`);
 
       setStep(1, "run");
-      const a = await wallet.sendTransaction({ data: ALIGNED_AIRDROP.bytecode, gas: 1_200_000 });
+      const deployA = await estimateDeploy(ALIGNED_AIRDROP.bytecode, wallet.address);
+      const a = await wallet.sendTransaction({ data: ALIGNED_AIRDROP.bytecode, gas: Math.ceil(deployA * 1.1) });
       if (!a.contractAddress) throw new Error("部署失败：没有拿到合约地址");
-      setStep(1, "ok", a.contractAddress);
+      setStep(1, "ok", `${a.contractAddress} · limit ${fmt(Math.ceil(deployA * 1.1))}`);
 
       const users = usersFor(n);
       const dataMapping = encodeFunctionData({ abi: BATCH_AIRDROP.abi, functionName: "airdrop", args: [users, 10n ** 18n] });
