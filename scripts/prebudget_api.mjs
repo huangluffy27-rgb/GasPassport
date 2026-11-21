@@ -2,12 +2,36 @@
 // 服务：node scripts/prebudget_api.mjs                      → http://127.0.0.1:8787
 // CLI ：node scripts/prebudget_api.mjs --artifact out/X.json --function airdrop --min 1 --max 64 --step 8
 // 部署：node scripts/prebudget_api.mjs --deploy out/X.json --args 0x
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import http from "node:http";
 import { batchPlan, deployBudget, functionBudget } from "./budget_core.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const API_KEY = process.env.GASPASSPORT_API_KEY ?? "";
+const QUOTA = Number(process.env.GASPASSPORT_QUOTA ?? 0);
+const USAGE_FILE = process.env.GASPASSPORT_USAGE_FILE ?? resolve(process.cwd(), ".local", "api-usage.json");
+const today = () => new Date().toISOString().slice(0, 10);
+
+function loadUsage() {
+  try {
+    const u = JSON.parse(readFileSync(USAGE_FILE, "utf8"));
+    if (u.day === today()) return u;
+  } catch {
+    // 首次运行或文件损坏：从零开始
+  }
+  return { day: today(), count: 0 };
+}
+
+let usage = loadUsage();
+
+function consume() {
+  if (usage.day !== today()) usage = { day: today(), count: 0 };
+  usage.count += 1;
+  mkdirSync(dirname(USAGE_FILE), { recursive: true });
+  writeFileSync(USAGE_FILE, JSON.stringify(usage));
+  return usage;
+}
 
 function readArtifact(path) {
   return JSON.parse(readFileSync(path, "utf8"));
@@ -85,6 +109,20 @@ async function startServer() {
       if (req.method === "POST" && API_KEY && req.headers["x-api-key"] !== API_KEY) {
         return send(res, 401, { error: "unauthorized" });
       }
+      if (req.method === "GET" && req.url === "/v1/usage") {
+        return send(res, 200, {
+          day: usage.day,
+          used: usage.count,
+          quota: QUOTA || null,
+          remaining: QUOTA ? Math.max(0, QUOTA - usage.count) : null,
+        });
+      }
+      if (req.method === "POST") {
+        if (QUOTA > 0 && usage.count >= QUOTA) {
+          return send(res, 429, { error: "quota exceeded", quota: QUOTA, used: usage.count });
+        }
+        consume();
+      }
       if (req.method === "POST" && req.url === "/v1/batch-plan") {
         return send(res, 200, batchPlan(await readBody(req)));
       }
@@ -122,6 +160,8 @@ async function startServer() {
     console.log(`POST /v1/budget         { artifact, function, min?, max?, step?, samplesPerInput? }`);
     console.log(`POST /v1/batch-plan     { totalUsers, perUserGas, txGasCap?, txOverhead? }`);
     console.log(API_KEY ? "auth: x-api-key required" : "auth: open (set GASPASSPORT_API_KEY to enable)");
+    console.log(`GET  /v1/usage`);
+    console.log(`usage: ${usage.count}/${QUOTA || "∞"} (${USAGE_FILE})`);
   });
 }
 

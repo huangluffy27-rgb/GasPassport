@@ -18,6 +18,7 @@
 ```bash
 node scripts/prebudget_api.mjs          # 本地 API → http://127.0.0.1:8787
 GASPASSPORT_API_KEY=xxx node scripts/prebudget_api.mjs   # 开启 x-api-key 鉴权
+GASPASSPORT_QUOTA=1000 GASPASSPORT_API_KEY=xxx node scripts/prebudget_api.mjs   # 每日配额
 
 node scripts/prebudget_api.mjs --artifact contracts/out/BatchAirdrop.sol/BatchAirdrop.json \
   --function airdrop --min 1 --max 64 --step 8      # 函数预算
@@ -38,11 +39,17 @@ POST /v1/budget
 POST /v1/batch-plan
 { "totalUsers": 10000, "perUserGas": 21079 }
 → { "capacityPerTx": 1422, "chunks": 8, "totalGas": 210958000 }
+
+GET /v1/usage
+→ { "day": "2026-11-21", "used": 2, "quota": 1000, "remaining": 998 }
 ```
+
+CI 里也能跑：`.github/workflows/gas-budget.yml`（手动触发，forge build 后调用 CLI，产物为 `gas-budget.json`）。
 
 - **拆笔**：按单笔 30M cap 自动算每笔容量、笔数与总预算（1 万人 → 1,422/笔、8 笔、2.11 亿 gas）；
 - **缓存**：函数预算以 `codeHash + 函数 + 区间 + 采样参数` 为键，内存缓存 5 分钟，第二次调用带 `cached: true`；
-- **鉴权**：设置 `GASPASSPORT_API_KEY` 后必须带 `x-api-key`，否则 401；目前只有“开关”，还没有计量与配额；
+- **鉴权与配额**：设置 `GASPASSPORT_API_KEY` 后必须带 `x-api-key`，否则 401；`GASPASSPORT_QUOTA` 设每日上限，超出返回 429；
+- **计量**：按天计数并落盘到 `.local/api-usage.json`（可用 `GASPASSPORT_USAGE_FILE` 改路径），`GET /v1/usage` 可查；这是本地计数，不是账单系统；
 - **可审计字段**：`schemaVersion / chainId / method / support / coverage / certified / codeHash / extrapolated`；
 - **边界**：只支持长度可变的 `address[]` 参数；采样密度不足时 `certified: false`；认证只覆盖 `support` 区间，超出标 `extrapolated`；
 - 目前只能跑仓库内两个对照合约的 dApp 演示；API/CLI 可接任意 Foundry artifact。
