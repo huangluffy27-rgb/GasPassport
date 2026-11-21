@@ -45,6 +45,8 @@ GET /v1/usage
 → { "day": "2026-11-21", "used": 2, "quota": 1000, "remaining": 998 }
 ```
 
+> deploy 示例用的是 `ClaimManySHA`、构造参数为 0；有真实 Merkle 根时约 513k。`BatchAirdrop` 的推荐部署 limit 是 183,522。
+
 CI 里也能跑：`.github/workflows/gas-budget.yml`（手动触发，forge build 后调用 CLI，产物为 `gas-budget.json`）。
 
 - **拆笔**：按单笔 30M cap 自动算每笔容量、笔数与总预算（1 万人 → 1,422/笔、8 笔、2.11 亿 gas）；
