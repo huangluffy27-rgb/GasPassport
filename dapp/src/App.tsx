@@ -331,8 +331,8 @@ function AlignPanel({
       const dataMapping = encodeFunctionData({ abi: BATCH_AIRDROP.abi, functionName: "airdrop", args: [users, 10n ** 18n] });
       const dataAligned = encodeFunctionData({ abi: ALIGNED_AIRDROP.abi, functionName: "airdrop", args: [users, 10n ** 18n / 1000n] });
       const [mapping, aligned] = await Promise.all([
-        estimate(BATCH_AIRDROP.bytecode, dataMapping),
-        estimate(ALIGNED_AIRDROP.bytecode, dataAligned),
+        estimate(BATCH_AIRDROP.deployedBytecode, dataMapping),
+        estimate(ALIGNED_AIRDROP.deployedBytecode, dataAligned),
       ]);
       setSim({ mapping, aligned });
       notify(`模拟完成：节省 ${fmt(mapping - aligned)} gas`);

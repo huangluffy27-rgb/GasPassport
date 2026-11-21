@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const pick = (name) => {
   const a = JSON.parse(readFileSync(resolve(root, `contracts/out/${name}.sol/${name}.json`), "utf8"));
-  return { abi: a.abi, bytecode: a.bytecode.object };
+  return { abi: a.abi, bytecode: a.bytecode.object, deployedBytecode: a.deployedBytecode.object };
 };
 
 const batch = pick("BatchAirdrop");
