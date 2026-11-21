@@ -10,6 +10,7 @@ import {
   readPageCost,
   readSamples,
   readCalibration,
+  readAligned,
   readTestnetPageCost,
   summarize,
 } from "./analyze.js";
@@ -34,6 +35,7 @@ function main(): void {
   const pages = readPageCost(dir);
   const testnet = readTestnetPageCost(dir);
   const calibration = readCalibration(dir);
+  const aligned = readAligned(dir);
   const samplers = [...new Set(samples.map((s) => s.sampler))];
   const stats = samplers.map((s) => summarize(s, samples));
   const insight = buildInsight(pages, testnet, stats);
@@ -83,6 +85,7 @@ function main(): void {
     pwConf,
     airConf,
     adv,
+    aligned,
     now,
   );
   const outPath = resolve(dir, "report.html");

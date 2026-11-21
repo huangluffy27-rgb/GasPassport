@@ -103,6 +103,19 @@ export function readCalibration(dir: string): Calibration {
   };
 }
 
+export type AlignedRow = { count: number; mapping: number; aligned: number; diff: number; diffPct: number };
+
+export function readAligned(dir: string): AlignedRow[] {
+  const rows = parseCsv(readFileSync(join(dir, "aligned_airdrop.csv"), "utf8"));
+  return rows.map((cols) => ({
+    count: Number(cols[0]),
+    mapping: Number(cols[1]),
+    aligned: Number(cols[2]),
+    diff: Number(cols[3]),
+    diffPct: Number(cols[4]),
+  }));
+}
+
 export function readAirdropSamples(dir: string): Sample[] {
   return readSamples(dir).filter((s) => s.target === "BatchAirdrop");
 }

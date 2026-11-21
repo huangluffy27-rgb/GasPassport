@@ -1,4 +1,4 @@
-import type { AirdropInsight, Calibration, Insight, PageRow, SamplerStats, TestnetRow } from "./analyze.js";
+import type { AirdropInsight, AlignedRow, Calibration, Insight, PageRow, SamplerStats, TestnetRow } from "./analyze.js";
 import { PAGE_EXTRA } from "./analyze.js";
 import type { ConfSummary } from "./conformal.js";
 import type { AdvancedSummary } from "./advanced.js";
@@ -105,6 +105,7 @@ export function renderReport(
   pwConf: ConfSummary,
   airConf: ConfSummary,
   adv: AdvancedSummary,
+  aligned: AlignedRow[],
   generatedAt: string,
 ): string {
   const worstBucket = pwConf.auto.buckets[pwConf.auto.buckets.length - 1];
@@ -238,6 +239,20 @@ export function renderReport(
     </tbody>
   </table>
   <p class="note">按 10k TPS、每笔都做 64 页散写估算（上限口径）：状态页流量约 2.56 GB/s、随机读约 64 万 IOPS；页对齐后约 40 MB/s、1 万 IOPS。端到端 TPS 的提升取决于节点是否卡在存储：乐观 20–50%，保守 1.5–2×。这不是“省点 gas”，而是存储型合约能否在单节点跑满吞吐的分界。</p>
+
+  <h2>页对齐实测：散列映射 vs 追加记录</h2>
+  <p class="sub"><code>AlignedAirdrop</code> 用 <code>Entry[]</code> 追加写（address 20B + uint96 12B = 1 槽），32 条记录落在同一 4KB 页；<code>BatchAirdrop</code> 用 <code>mapping(address =&gt; uint256)</code>，每个地址的槽由 keccak 散列。两者都在测试网用 estimateGas 实测。</p>
+  <table>
+    <thead><tr><th>人数</th><th>散列映射</th><th>页对齐</th><th>差额</th><th>降幅</th></tr></thead>
+    <tbody>
+      ${aligned
+        .map(
+          (r) => `<tr><td>${r.count}</td><td>${fmt(r.mapping)}</td><td>${fmt(r.aligned)}</td><td>${fmt(r.diff)}</td><td>${pct(r.diffPct / 100)}</td></tr>`,
+        )
+        .join("")}
+    </tbody>
+  </table>
+  <p class="note">降幅低于“页数 32 → 1”的理论值（约 59%），原因是每个槽仍要付零→非零写入，页激活只是成本的一部分；页对齐同时省下的是状态 I/O 与缓存压力。代价：追加记录按用户查询需要索引或链下扫描，不能直接替代随机读写余额。</p>
 
   <h2>真实交易校准：estimateGas 就是最小可行 limit</h2>
   <table>

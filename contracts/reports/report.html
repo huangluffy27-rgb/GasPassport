@@ -34,7 +34,7 @@
 <body>
 <div class="wrap">
   <h1>ChaosGas 报告</h1>
-  <p class="sub">Monad 合约函数的 gas limit 体检 · 生成于 2026-11-21 04:56:21 UTC · 1,536 条测试网原生采样</p>
+  <p class="sub">Monad 合约函数的 gas limit 体检 · 生成于 2026-11-21 05:09:03 UTC · 1,536 条测试网原生采样</p>
 
   <div class="cards">
     <div class="card">
@@ -126,6 +126,16 @@
     </tbody>
   </table>
   <p class="note">按 10k TPS、每笔都做 64 页散写估算（上限口径）：状态页流量约 2.56 GB/s、随机读约 64 万 IOPS；页对齐后约 40 MB/s、1 万 IOPS。端到端 TPS 的提升取决于节点是否卡在存储：乐观 20–50%，保守 1.5–2×。这不是“省点 gas”，而是存储型合约能否在单节点跑满吞吐的分界。</p>
+
+  <h2>页对齐实测：散列映射 vs 追加记录</h2>
+  <p class="sub"><code>AlignedAirdrop</code> 用 <code>Entry[]</code> 追加写（address 20B + uint96 12B = 1 槽），32 条记录落在同一 4KB 页；<code>BatchAirdrop</code> 用 <code>mapping(address =&gt; uint256)</code>，每个地址的槽由 keccak 散列。两者都在测试网用 estimateGas 实测。</p>
+  <table>
+    <thead><tr><th>人数</th><th>散列映射</th><th>页对齐</th><th>差额</th><th>降幅</th></tr></thead>
+    <tbody>
+      <tr><td>8</td><td>255,564</td><td>221,768</td><td>33,796</td><td>13.2%</td></tr><tr><td>16</td><td>487,809</td><td>381,264</td><td>106,545</td><td>21.8%</td></tr><tr><td>32</td><td>952,298</td><td>711,142</td><td>241,156</td><td>25.3%</td></tr><tr><td>64</td><td>1,881,217</td><td>1,349,065</td><td>532,152</td><td>28.3%</td></tr>
+    </tbody>
+  </table>
+  <p class="note">降幅低于“页数 32 → 1”的理论值（约 59%），原因是每个槽仍要付零→非零写入，页激活只是成本的一部分；页对齐同时省下的是状态 I/O 与缓存压力。代价：追加记录按用户查询需要索引或链下扫描，不能直接替代随机读写余额。</p>
 
   <h2>真实交易校准：estimateGas 就是最小可行 limit</h2>
   <table>
