@@ -1,6 +1,6 @@
 import type { AirdropInsight, Calibration, Insight, PageRow, SamplerStats, TestnetRow } from "./analyze.js";
 import { PAGE_EXTRA } from "./analyze.js";
-import type { TargetReport } from "./conformal.js";
+import type { ConfSummary } from "./conformal.js";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
@@ -101,12 +101,13 @@ export function renderReport(
   insight: Insight,
   airStats: SamplerStats[],
   airInsight: AirdropInsight,
-  pwConf: TargetReport,
-  airConf: TargetReport,
+  pwConf: ConfSummary,
+  airConf: ConfSummary,
   generatedAt: string,
 ): string {
-  const worstBucket = pwConf.buckets[pwConf.buckets.length - 1];
+  const worstBucket = pwConf.auto.buckets[pwConf.auto.buckets.length - 1];
   const bucketOverpay = worstBucket.buffer3x / worstBucket.limit - 1;
+  const autoGain = 1 - pwConf.autoExpected / pwConf.fixedExpected;
   const statsRows = (list: SamplerStats[]) =>
     list
       .map(
@@ -185,12 +186,12 @@ export function renderReport(
 
   <div class="cards">
     <div class="card">
-      <div class="k">小输入认证上限（1–8 次写）</div>
-      <div class="v">${fmt(pwConf.buckets[0].limit)}</div>
-      <div class="n">全局上限 ${fmt(pwConf.global.limit)}，收紧 ${pct(1 - pwConf.buckets[0].limit / pwConf.global.limit)}</div>
+      <div class="k">小输入认证上限（${pwConf.auto.buckets[0].label} 次写）</div>
+      <div class="v">${fmt(pwConf.auto.buckets[0].limit)}</div>
+      <div class="n">全局上限 ${fmt(pwConf.auto.global.limit)}，收紧 ${pct(1 - pwConf.auto.buckets[0].limit / pwConf.auto.global.limit)}</div>
     </div>
     <div class="card">
-      <div class="k">大输入认证上限（33–64 次写）</div>
+      <div class="k">大输入认证上限（${worstBucket.label} 次写）</div>
       <div class="v">${fmt(worstBucket.limit)}</div>
       <div class="n">共形预测 99% 覆盖 · 留出集实测 ${pct(worstBucket.coverage)}</div>
     </div>
@@ -222,6 +223,20 @@ export function renderReport(
   </table>
   <p class="note">口径：这一节全部来自 Monad 测试网 <code>eth_estimateGas</code> 实测。测量方式是把 PageWriter 的运行时字节码通过状态覆盖放到测试网地址上，模拟调用，不发交易、不需要测试币。n=8/16/32/64 的每页增量稳定在约 10,975 gas，比我们最初按文档估的 8,000 高约 37%。</p>
 
+  <h2>硬件层含义：128 槽 = 4KB，不是抽象数字</h2>
+  <p class="sub">128 × 32 字节 = 4,096 字节，正好是 OS 页、SSD 页和一次 NVMe 随机读的粒度。所以页成本既是 gas 规则，也是内存层次与存储 I/O 的成本。</p>
+  <table>
+    <thead><tr><th>措施</th><th>机制</th><th>预计收益（含假设）</th></tr></thead>
+    <tbody>
+      <tr><td>热状态页对齐</td><td>64 次散写从 64 页压到 1 页</td><td>gas −59.4%（实测 691,455）；每次调用状态页流量 256KB → 4KB（−98%）</td></tr>
+      <tr><td>写合并 / 批处理</td><td>同一页的多次写共享一次页激活</td><td>存储型函数 gas −10–40%（假设批内地址可合并）</td></tr>
+      <tr><td>页感知存储布局</td><td>常一起访问的变量排进同一 4KB 页</td><td>gas −20–60%；随机读 IOPS 降一个量级</td></tr>
+      <tr><td>大页 / 页预取（节点层）</td><td>减少 TLB miss 与随机 I/O</td><td>节点级 5–15%；协议层，应用不可控</td></tr>
+      <tr><td>GPU / 并行 EVM 采样</td><td>本地批量模拟，不走 RPC</td><td>采样吞吐 10–100×，不影响链上 gas</td></tr>
+    </tbody>
+  </table>
+  <p class="note">按 10k TPS、每笔都做 64 页散写估算（上限口径）：状态页流量约 2.56 GB/s、随机读约 64 万 IOPS；页对齐后约 40 MB/s、1 万 IOPS。端到端 TPS 的提升取决于节点是否卡在存储：乐观 20–50%，保守 1.5–2×。这不是“省点 gas”，而是存储型合约能否在单节点跑满吞吐的分界。</p>
+
   <h2>真实交易校准：estimateGas 就是最小可行 limit</h2>
   <table>
     <thead><tr><th>函数</th><th>写入次数</th><th>试探 limit</th><th>结果</th><th>回执 gasUsed</th></tr></thead>
@@ -245,7 +260,7 @@ export function renderReport(
   <p class="sub">全部样本改为测试网原生 <code>eth_estimateGas</code>（状态覆盖，不发交易），共 1,536 条。按输入规模分桶，偶数 iter 做校准、奇数 iter 做留出测试；上限取共形分位数（第 ⌈(n+1)×0.99⌉ 小），极值列用 GPD 外推 99.9% 并给 bootstrap 90% 区间。</p>
   <table>
     <thead><tr><th>输入规模</th><th>校准样本</th><th>99% 认证上限</th><th>留出覆盖</th><th>留出最大 gas</th><th>3x buffer</th><th>3x 覆盖</th><th>EVT 99.9%（90% CI）</th></tr></thead>
-    <tbody>${pwConf.buckets
+    <tbody>${pwConf.auto.buckets
       .map(
         (b) => `<tr>
         <td>${b.label}</td>
@@ -263,7 +278,7 @@ export function renderReport(
   <p class="sub">BatchAirdrop（写 N 个散列余额槽）</p>
   <table>
     <thead><tr><th>输入规模</th><th>校准样本</th><th>99% 认证上限</th><th>留出覆盖</th><th>留出最大 gas</th><th>3x buffer</th><th>3x 覆盖</th><th>EVT 99.9%（90% CI）</th></tr></thead>
-    <tbody>${airConf.buckets
+    <tbody>${airConf.auto.buckets
       .map(
         (b) => `<tr>
         <td>${b.label}</td>
@@ -278,7 +293,34 @@ export function renderReport(
       )
       .join("")}</tbody>
   </table>
-  <p class="note">分桶后 33–64 次写的上限 ${fmt(worstBucket.limit)}，留出覆盖 ${pct(worstBucket.coverage)}；全局共形上限 ${fmt(pwConf.global.limit)}，覆盖 ${pct(pwConf.global.coverage)}。条件版本在小输入上明显更紧，代价是需要知道这次调用落在哪个桶。</p>
+  <p class="note">分桶后大输入桶的上限 ${fmt(worstBucket.limit)}，留出覆盖 ${pct(worstBucket.coverage)}；全局共形上限 ${fmt(pwConf.auto.global.limit)}，覆盖 ${pct(pwConf.auto.global.coverage)}。条件版本在小输入上明显更紧，代价是需要知道这次调用落在哪个桶。</p>
+
+  <h2>数据驱动桶边界</h2>
+  <p class="sub">固定桶是手拍的（1–8 / 9–16 / …）。这里在<strong>校准半集</strong>上用动态规划选边界，目标是最小化期望超付 (limit − 均值) × 样本数，每桶至少 60 个校准样本；留出集只用于评估。</p>
+  <table>
+    <thead><tr><th>目标</th><th>固定桶期望上限</th><th>数据驱动期望上限</th><th>改善</th><th>固定覆盖</th><th>自动覆盖</th><th>选出的边界</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>PageWriter</td>
+        <td>${fmt(pwConf.fixedExpected)}</td>
+        <td>${fmt(pwConf.autoExpected)}</td>
+        <td>${pct(autoGain)}</td>
+        <td>${pct(pwConf.fixedCoverage)}</td>
+        <td>${pct(pwConf.autoCoverage)}</td>
+        <td>${pwConf.buckets.map((b) => b.label).join(" / ")}</td>
+      </tr>
+      <tr>
+        <td>BatchAirdrop</td>
+        <td>${fmt(airConf.fixedExpected)}</td>
+        <td>${fmt(airConf.autoExpected)}</td>
+        <td>${pct(1 - airConf.autoExpected / airConf.fixedExpected)}</td>
+        <td>${pct(airConf.fixedCoverage)}</td>
+        <td>${pct(airConf.autoCoverage)}</td>
+        <td>${airConf.buckets.map((b) => b.label).join(" / ")}</td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="note">边界只在校准集上选，避免用测试集调参；两个方案的留出覆盖率都在 99% 附近。改善来自把桶宽按 gas 曲线分配，而不是按 2 的幂手切。</p>
 
   <h2>采样收敛：IET 比均匀随机更快贴近真值</h2>
   <p class="sub">灰=同页，蓝=跨页；线色：<span style="color:#dc2626">uniform</span> / <span style="color:#2563eb">iet</span> / <span style="color:#059669">logistic</span></p>

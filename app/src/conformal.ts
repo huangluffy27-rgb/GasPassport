@@ -22,6 +22,8 @@ export type Bucket = { label: string; min: number; max: number };
 
 export type BucketResult = {
   label: string;
+  min: number;
+  max: number;
   nCal: number;
   nTest: number;
   limit: number;
@@ -56,8 +58,20 @@ export function conformalLimit(cal: number[], alpha: number): number {
   return sorted[idx];
 }
 
+/** 固定种子的 PRNG，保证 bootstrap 结果可复现 */
+function mulberry32(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 /** 广义帕累托（矩估计）分位数外推 */
 export function evtQuantile(cal: number[], p: number, bootstrap = 200): { q: number; low: number; high: number } {
+  const rand = mulberry32(20261121);
   const sorted = [...cal].sort((a, b) => a - b);
   const u = quantile(sorted, 0.8);
   const excess = sorted.filter((x) => x > u).map((x) => x - u);
@@ -78,7 +92,7 @@ export function evtQuantile(cal: number[], p: number, bootstrap = 200): { q: num
   const base = fit(excess).q;
   const samples: number[] = [];
   for (let b = 0; b < bootstrap; b++) {
-    const resample = Array.from({ length: excess.length }, () => excess[Math.floor(Math.random() * excess.length)]);
+    const resample = Array.from({ length: excess.length }, () => excess[Math.floor(rand() * excess.length)]);
     samples.push(fit(resample).q);
   }
   samples.sort((a, b) => a - b);
@@ -90,7 +104,7 @@ export function evtQuantile(cal: number[], p: number, bootstrap = 200): { q: num
   };
 }
 
-function evaluateBucket(label: string, rows: Row[], alpha: number): BucketResult {
+function evaluateBucket(label: string, rows: Row[], alpha: number, min: number, max: number): BucketResult {
   // 按 iter 奇偶切分校准/测试，保证三个采样器均衡
   const cal = rows.filter((r) => r.iter % 2 === 0).map((r) => r.gas);
   const test = rows.filter((r) => r.iter % 2 === 1).map((r) => r.gas);
@@ -101,6 +115,8 @@ function evaluateBucket(label: string, rows: Row[], alpha: number): BucketResult
 
   return {
     label,
+    min,
+    max,
     nCal: cal.length,
     nTest: test.length,
     limit,
@@ -128,14 +144,116 @@ const BUCKETS: Record<string, Bucket[]> = {
   ],
 };
 
-export function evaluateTarget(target: string, rows: Row[], alpha = 0.01): TargetReport {
+export function evaluateTarget(target: string, rows: Row[], alpha = 0.01, buckets?: Bucket[]): TargetReport {
   const scoped = rows.filter((r) => r.target === target);
-  const buckets = BUCKETS[target] ?? [{ label: "all", min: 1, max: 64 }];
+  const chosen = buckets ?? BUCKETS[target] ?? [{ label: "all", min: 1, max: 64 }];
   return {
     target,
-    global: evaluateBucket("all", scoped, alpha),
-    buckets: buckets.map((b) =>
-      evaluateBucket(b.label, scoped.filter((r) => r.count >= b.min && r.count <= b.max), alpha),
+    global: evaluateBucket("all", scoped, alpha, 1, 64),
+    buckets: chosen.map((b) =>
+      evaluateBucket(b.label, scoped.filter((r) => r.count >= b.min && r.count <= b.max), alpha, b.min, b.max),
     ),
+  };
+}
+
+/**
+ * 数据驱动的桶边界：动态规划，最小化校准集上的期望超付（limit - 均值）× 样本数。
+ * 只在校准半集上选边界，避免测试集泄漏；每桶至少 minCal 个校准样本。
+ */
+export function chooseBuckets(target: string, rows: Row[], k = 5, minCal = 60, alpha = 0.01): Bucket[] {
+  const scoped = rows.filter((r) => r.target === target);
+  const counts = [...new Set(scoped.map((r) => r.count))].sort((a, b) => a - b);
+  const calByCount = new Map<number, number[]>();
+  for (const c of counts) calByCount.set(c, scoped.filter((r) => r.count === c && r.iter % 2 === 0).map((r) => r.gas));
+
+  const cost = (from: number, to: number): number => {
+    const cal: number[] = [];
+    for (let i = from; i <= to; i++) cal.push(...(calByCount.get(counts[i]) ?? []));
+    if (cal.length < minCal) return Number.POSITIVE_INFINITY;
+    const limit = conformalLimit(cal, alpha);
+    return (limit - mean(cal)) * cal.length;
+  };
+
+  const n = counts.length;
+  const K = Math.min(k, n);
+  const dp = Array.from({ length: K + 1 }, () => new Array<number>(n + 1).fill(Number.POSITIVE_INFINITY));
+  const prev = Array.from({ length: K + 1 }, () => new Array<number>(n + 1).fill(-1));
+  dp[0][0] = 0;
+
+  for (let j = 1; j <= K; j++) {
+    for (let i = 1; i <= n; i++) {
+      for (let p = 0; p < i; p++) {
+        if (!Number.isFinite(dp[j - 1][p])) continue;
+        const c = cost(p, i - 1);
+        if (!Number.isFinite(c)) continue;
+        const total = dp[j - 1][p] + c;
+        if (total < dp[j][i]) {
+          dp[j][i] = total;
+          prev[j][i] = p;
+        }
+      }
+    }
+  }
+
+  let bestK = K;
+  while (bestK > 1 && !Number.isFinite(dp[bestK][n])) bestK--;
+  if (!Number.isFinite(dp[bestK][n])) return BUCKETS[target] ?? [{ label: "all", min: 1, max: 64 }];
+
+  const bounds: number[] = [];
+  let i = n;
+  for (let j = bestK; j >= 1; j--) {
+    const p = prev[j][i];
+    bounds.unshift(p);
+    i = p;
+  }
+  bounds.push(n);
+
+  const out: Bucket[] = [];
+  for (let b = 0; b < bounds.length - 1; b++) {
+    const from = counts[bounds[b]];
+    const to = counts[bounds[b + 1] - 1];
+    out.push({ label: `${from}–${to}`, min: from, max: to });
+  }
+  return out;
+}
+
+/** 在留出集上按桶上限计算期望 limit，用于比较不同分桶方案 */
+export function expectedLimit(report: TargetReport, rows: Row[]): { expected: number; coverage: number } {
+  const test = rows.filter((r) => r.target === report.target && r.iter % 2 === 1);
+  let sum = 0;
+  let covered = 0;
+  for (const r of test) {
+    const b = report.buckets.find((x) => r.count >= x.min && r.count <= x.max);
+    const limit = b?.limit ?? report.global.limit;
+    sum += limit;
+    if (r.gas <= limit) covered++;
+  }
+  return { expected: sum / Math.max(1, test.length), coverage: covered / Math.max(1, test.length) };
+}
+
+export type ConfSummary = {
+  auto: TargetReport;
+  fixed: TargetReport;
+  buckets: Bucket[];
+  fixedExpected: number;
+  autoExpected: number;
+  fixedCoverage: number;
+  autoCoverage: number;
+};
+
+export function summarizeTarget(target: string, rows: Row[], k = 5): ConfSummary {
+  const fixed = evaluateTarget(target, rows);
+  const buckets = chooseBuckets(target, rows, k);
+  const auto = evaluateTarget(target, rows, 0.01, buckets);
+  const fixedEval = expectedLimit(fixed, rows);
+  const autoEval = expectedLimit(auto, rows);
+  return {
+    auto,
+    fixed,
+    buckets,
+    fixedExpected: fixedEval.expected,
+    autoExpected: autoEval.expected,
+    fixedCoverage: fixedEval.coverage,
+    autoCoverage: autoEval.coverage,
   };
 }

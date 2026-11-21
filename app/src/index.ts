@@ -14,7 +14,7 @@ import {
   summarize,
 } from "./analyze.js";
 import { renderReport } from "./report.js";
-import { evaluateTarget } from "./conformal.js";
+import { summarizeTarget } from "./conformal.js";
 
 function main(): void {
   const args = process.argv.slice(2);
@@ -50,8 +50,8 @@ function main(): void {
     pages: s.pages,
     gas: s.gasMonad,
   }));
-  const pwConf = evaluateTarget("PageWriter", confRows);
-  const airConf = evaluateTarget("BatchAirdrop", confRows);
+  const pwConf = summarizeTarget("PageWriter", confRows);
+  const airConf = summarizeTarget("BatchAirdrop", confRows);
 
   const now = new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC";
   const html = renderReport(
@@ -87,10 +87,10 @@ function main(): void {
   console.log(`3x 固定 buffer：${insight.naiveBuffer}，多付 ${(insight.bufferOverpayPct * 100).toFixed(1)}%`);
   console.log("");
   console.log(
-    `批量空投：条件认证上限 ${airConf.buckets[airConf.buckets.length - 1].limit}，测试覆盖 ${(airConf.buckets[airConf.buckets.length - 1].coverage * 100).toFixed(1)}%`,
+    `批量空投：数据驱动 ${airConf.auto.buckets[airConf.auto.buckets.length - 1].limit}，期望上限 ${Math.round(airConf.autoExpected)}（固定桶 ${Math.round(airConf.fixedExpected)}）`,
   );
   console.log(
-    `PageWriter：条件认证上限 ${pwConf.buckets[pwConf.buckets.length - 1].limit}，测试覆盖 ${(pwConf.buckets[pwConf.buckets.length - 1].coverage * 100).toFixed(1)}%`,
+    `PageWriter：数据驱动 ${pwConf.auto.buckets[pwConf.auto.buckets.length - 1].limit}，期望上限 ${Math.round(pwConf.autoExpected)}（固定桶 ${Math.round(pwConf.fixedExpected)}）`,
   );
   console.log("");
   console.log(`报告：${outPath}`);

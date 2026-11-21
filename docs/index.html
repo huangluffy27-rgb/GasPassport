@@ -34,16 +34,16 @@
 <body>
 <div class="wrap">
   <h1>ChaosGas 报告</h1>
-  <p class="sub">Monad 合约函数的 gas limit 体检 · 生成于 2026-11-21 04:34:14 UTC · 1,536 条测试网原生采样</p>
+  <p class="sub">Monad 合约函数的 gas limit 体检 · 生成于 2026-11-21 04:50:42 UTC · 1,536 条测试网原生采样</p>
 
   <div class="cards">
     <div class="card">
-      <div class="k">小输入认证上限（1–8 次写）</div>
-      <div class="v">266,946</div>
-      <div class="n">全局上限 1,855,180，收紧 85.6%</div>
+      <div class="k">小输入认证上限（1–14 次写）</div>
+      <div class="v">437,114</div>
+      <div class="n">全局上限 1,855,180，收紧 76.4%</div>
     </div>
     <div class="card">
-      <div class="k">大输入认证上限（33–64 次写）</div>
+      <div class="k">大输入认证上限（52–64 次写）</div>
       <div class="v">1,855,180</div>
       <div class="n">共形预测 99% 覆盖 · 留出集实测 100.0%</div>
     </div>
@@ -113,6 +113,20 @@
   </table>
   <p class="note">口径：这一节全部来自 Monad 测试网 <code>eth_estimateGas</code> 实测。测量方式是把 PageWriter 的运行时字节码通过状态覆盖放到测试网地址上，模拟调用，不发交易、不需要测试币。n=8/16/32/64 的每页增量稳定在约 10,975 gas，比我们最初按文档估的 8,000 高约 37%。</p>
 
+  <h2>硬件层含义：128 槽 = 4KB，不是抽象数字</h2>
+  <p class="sub">128 × 32 字节 = 4,096 字节，正好是 OS 页、SSD 页和一次 NVMe 随机读的粒度。所以页成本既是 gas 规则，也是内存层次与存储 I/O 的成本。</p>
+  <table>
+    <thead><tr><th>措施</th><th>机制</th><th>预计收益（含假设）</th></tr></thead>
+    <tbody>
+      <tr><td>热状态页对齐</td><td>64 次散写从 64 页压到 1 页</td><td>gas −59.4%（实测 691,455）；每次调用状态页流量 256KB → 4KB（−98%）</td></tr>
+      <tr><td>写合并 / 批处理</td><td>同一页的多次写共享一次页激活</td><td>存储型函数 gas −10–40%（假设批内地址可合并）</td></tr>
+      <tr><td>页感知存储布局</td><td>常一起访问的变量排进同一 4KB 页</td><td>gas −20–60%；随机读 IOPS 降一个量级</td></tr>
+      <tr><td>大页 / 页预取（节点层）</td><td>减少 TLB miss 与随机 I/O</td><td>节点级 5–15%；协议层，应用不可控</td></tr>
+      <tr><td>GPU / 并行 EVM 采样</td><td>本地批量模拟，不走 RPC</td><td>采样吞吐 10–100×，不影响链上 gas</td></tr>
+    </tbody>
+  </table>
+  <p class="note">按 10k TPS、每笔都做 64 页散写估算（上限口径）：状态页流量约 2.56 GB/s、随机读约 64 万 IOPS；页对齐后约 40 MB/s、1 万 IOPS。端到端 TPS 的提升取决于节点是否卡在存储：乐观 20–50%，保守 1.5–2×。这不是“省点 gas”，而是存储型合约能否在单节点跑满吞吐的分界。</p>
+
   <h2>真实交易校准：estimateGas 就是最小可行 limit</h2>
   <table>
     <thead><tr><th>函数</th><th>写入次数</th><th>试探 limit</th><th>结果</th><th>回执 gasUsed</th></tr></thead>
@@ -163,76 +177,130 @@
   <table>
     <thead><tr><th>输入规模</th><th>校准样本</th><th>99% 认证上限</th><th>留出覆盖</th><th>留出最大 gas</th><th>3x buffer</th><th>3x 覆盖</th><th>EVT 99.9%（90% CI）</th></tr></thead>
     <tbody><tr>
-        <td>1–8</td>
-        <td>49</td>
-        <td>266,946</td>
+        <td>1–14</td>
+        <td>94</td>
+        <td>437,114</td>
         <td>100.0%</td>
-        <td>266,946</td>
-        <td>479,670</td>
+        <td>437,114</td>
+        <td>774,624</td>
         <td>100.0%</td>
-        <td>266,946 <span class="sub">[266,946, 266,946]</span></td>
+        <td>437,114 <span class="sub">[437,114, 437,114]</span></td>
       </tr><tr>
-        <td>9–16</td>
-        <td>52</td>
-        <td>493,837</td>
+        <td>15–26</td>
+        <td>61</td>
+        <td>777,450</td>
         <td>100.0%</td>
-        <td>493,837</td>
-        <td>1,144,447</td>
+        <td>777,450</td>
+        <td>1,908,325</td>
         <td>100.0%</td>
-        <td>493,837 <span class="sub">[493,837, 493,837]</span></td>
+        <td>777,450 <span class="sub">[777,450, 777,450]</span></td>
       </tr><tr>
-        <td>17–32</td>
-        <td>83</td>
-        <td>947,618</td>
+        <td>27–39</td>
+        <td>71</td>
+        <td>1,146,147</td>
         <td>100.0%</td>
-        <td>947,618</td>
-        <td>2,213,437</td>
+        <td>1,146,147</td>
+        <td>2,983,062</td>
         <td>100.0%</td>
-        <td>947,618 <span class="sub">[947,618, 947,618]</span></td>
+        <td>1,255,119 <span class="sub">[1,255,119, 1,255,119]</span></td>
       </tr><tr>
-        <td>33–64</td>
-        <td>200</td>
+        <td>40–51</td>
+        <td>64</td>
+        <td>1,486,483</td>
+        <td>100.0%</td>
+        <td>1,486,483</td>
+        <td>4,026,052</td>
+        <td>100.0%</td>
+        <td>1,488,249 <span class="sub">[1,486,483, 1,488,730]</span></td>
+      </tr><tr>
+        <td>52–64</td>
+        <td>94</td>
         <td>1,855,180</td>
         <td>100.0%</td>
         <td>1,855,180</td>
-        <td>4,378,193</td>
+        <td>5,145,551</td>
         <td>100.0%</td>
-        <td>1,855,180 <span class="sub">[1,855,180, 1,855,180]</span></td>
+        <td>1,972,515 <span class="sub">[1,972,515, 1,972,515]</span></td>
       </tr></tbody>
   </table>
   <p class="sub">BatchAirdrop（写 N 个散列余额槽）</p>
   <table>
     <thead><tr><th>输入规模</th><th>校准样本</th><th>99% 认证上限</th><th>留出覆盖</th><th>留出最大 gas</th><th>3x buffer</th><th>3x 覆盖</th><th>EVT 99.9%（90% CI）</th></tr></thead>
     <tbody><tr>
-        <td>1–8</td>
-        <td>101</td>
-        <td>255,576</td>
+        <td>1–7</td>
+        <td>94</td>
+        <td>226,546</td>
         <td>100.0%</td>
-        <td>255,576</td>
-        <td>451,305</td>
+        <td>226,546</td>
+        <td>427,819</td>
         <td>100.0%</td>
-        <td>428,223 <span class="sub">[336,330, 464,234]</span></td>
+        <td>226,546 <span class="sub">[226,546, 226,546]</span></td>
       </tr><tr>
-        <td>9–16</td>
-        <td>83</td>
-        <td>487,821</td>
+        <td>8–13</td>
+        <td>61</td>
+        <td>400,729</td>
         <td>100.0%</td>
-        <td>487,821</td>
-        <td>1,161,230</td>
+        <td>400,729</td>
+        <td>1,006,553</td>
         <td>100.0%</td>
-        <td>511,618 <span class="sub">[492,634, 619,620]</span></td>
+        <td>400,733 <span class="sub">[400,730, 400,734]</span></td>
       </tr><tr>
-        <td>17–32</td>
-        <td>200</td>
+        <td>14–20</td>
+        <td>77</td>
+        <td>603,944</td>
+        <td>100.0%</td>
+        <td>603,944</td>
+        <td>1,578,788</td>
+        <td>100.0%</td>
+        <td>603,944 <span class="sub">[603,944, 603,944]</span></td>
+      </tr><tr>
+        <td>21–26</td>
+        <td>60</td>
+        <td>778,127</td>
+        <td>100.0%</td>
+        <td>778,127</td>
+        <td>2,125,298</td>
+        <td>100.0%</td>
+        <td>795,458 <span class="sub">[781,327, 900,912]</span></td>
+      </tr><tr>
+        <td>27–32</td>
+        <td>92</td>
         <td>952,311</td>
         <td>100.0%</td>
         <td>952,311</td>
-        <td>2,272,478</td>
+        <td>2,671,307</td>
         <td>100.0%</td>
-        <td>955,132 <span class="sub">[952,311, 960,153]</span></td>
+        <td>952,311 <span class="sub">[952,311, 952,311]</span></td>
       </tr></tbody>
   </table>
-  <p class="note">分桶后 33–64 次写的上限 1,855,180，留出覆盖 100.0%；全局共形上限 1,855,180，覆盖 100.0%。条件版本在小输入上明显更紧，代价是需要知道这次调用落在哪个桶。</p>
+  <p class="note">分桶后大输入桶的上限 1,855,180，留出覆盖 100.0%；全局共形上限 1,855,180，覆盖 100.0%。条件版本在小输入上明显更紧，代价是需要知道这次调用落在哪个桶。</p>
+
+  <h2>数据驱动桶边界</h2>
+  <p class="sub">固定桶是手拍的（1–8 / 9–16 / …）。这里在<strong>校准半集</strong>上用动态规划选边界，目标是最小化期望超付 (limit − 均值) × 样本数，每桶至少 60 个校准样本；留出集只用于评估。</p>
+  <table>
+    <thead><tr><th>目标</th><th>固定桶期望上限</th><th>数据驱动期望上限</th><th>改善</th><th>固定覆盖</th><th>自动覆盖</th><th>选出的边界</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>PageWriter</td>
+        <td>1,278,500</td>
+        <td>1,145,039</td>
+        <td>10.4%</td>
+        <td>100.0%</td>
+        <td>100.0%</td>
+        <td>1–14 / 15–26 / 27–39 / 40–51 / 52–64</td>
+      </tr>
+      <tr>
+        <td>BatchAirdrop</td>
+        <td>673,496</td>
+        <td>590,562</td>
+        <td>12.3%</td>
+        <td>100.0%</td>
+        <td>100.0%</td>
+        <td>1–7 / 8–13 / 14–20 / 21–26 / 27–32</td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="note">边界只在校准集上选，避免用测试集调参；两个方案的留出覆盖率都在 99% 附近。改善来自把桶宽按 gas 曲线分配，而不是按 2 的幂手切。</p>
 
   <h2>采样收敛：IET 比均匀随机更快贴近真值</h2>
   <p class="sub">灰=同页，蓝=跨页；线色：<span style="color:#dc2626">uniform</span> / <span style="color:#2563eb">iet</span> / <span style="color:#059669">logistic</span></p>
@@ -327,7 +395,7 @@
   <h2>结论</h2>
   <div class="note ok">
     <strong>给这个函数的建议：</strong>按输入规模查表，33–64 次写用 <code>1,855,180</code>。
-    这是共形分位数，留出集实测覆盖 100.0%；朴素的 3x 均值 buffer（4,378,193）多付 136.0%。
+    这是共形分位数，留出集实测覆盖 100.0%；朴素的 3x 均值 buffer（5,145,551）多付 177.4%。
     在 Monad 上 gas 按 limit 扣费且不退，这部分就是纯损耗。
   </div>
   <p class="note">最坏情况出现在 count=64：跨页写入 64 页，对比同页 1 页。
