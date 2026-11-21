@@ -30,11 +30,12 @@ node scripts/prebudget_api.mjs --batch 10000,21079  # 拆笔：1 万人、每人
 ```http
 POST /v1/deploy-budget
 { "chainId": 10143, "bytecode": "0x...", "constructorArgs": "0x..." }
-→ { "limit99": 183522, "limit999": 242268, "certified": true, "codeHash": "0x..." }
+→ { "schemaVersion": "1.0", "kind": "deploy", "estimate": 493412, "recommendLimit": 503281, "note": "..." }
 
 POST /v1/budget
 { "chainId": 10143, "artifact": { ... }, "function": "airdrop", "min": 1, "max": 64, "step": 8 }
-→ { "buckets": [...], "support": [1, 64], "coverage": 0.99, "samples": 8, "codeHash": "0x...", "certified": false }
+→ { "buckets": [...], "support": { "min": 1, "max": 64 }, "coverage": 0.99, "samples": 8,
+    "codeHash": "0x...", "varying": { "index": 0, "type": "address[]" }, "certified": false }
 
 POST /v1/batch-plan
 { "totalUsers": 10000, "perUserGas": 21079 }
@@ -48,8 +49,8 @@ CI 里也能跑：`.github/workflows/gas-budget.yml`（手动触发，forge buil
 
 - **拆笔**：按单笔 30M cap 自动算每笔容量、笔数与总预算（1 万人 → 1,422/笔、8 笔、2.11 亿 gas）；
 - **缓存**：函数预算以 `codeHash + 函数 + 区间 + 采样参数 + varyIndex` 为键，内存 + 磁盘缓存（`.local/api-cache.json`，可用 `GASPASSPORT_CACHE_FILE` 改路径），TTL 5 分钟；重启后仍可命中；
-- **鉴权与配额**：设置 `GASPASSPORT_API_KEY` 后必须带 `x-api-key`，否则 401；`GASPASSPORT_QUOTA` 设每日上限，超出返回 429；
-- **计量**：按天计数并落盘到 `.local/api-usage.json`（可用 `GASPASSPORT_USAGE_FILE` 改路径），`GET /v1/usage` 可查；这是本地计数，不是账单系统；
+- **鉴权与配额**：设置 `GASPASSPORT_API_KEY` 后，POST 与 `/v1/usage` 必须带 `x-api-key`，否则 401（`/health` 保持开放）；`GASPASSPORT_QUOTA` 为 **UTC 日**上限，按请求计数（含参数错误），超出返回 429；
+- **计量**：按 UTC 日计数并落盘到 `.local/api-usage.json`（可用 `GASPASSPORT_USAGE_FILE` 改路径），`GET /v1/usage` 可查；这是本地计数，不是账单系统；
 - **可审计字段**：`schemaVersion / chainId / method / support / coverage / certified / codeHash / extrapolated`；
 - **可变参数**：支持 `address[]` / `uint` / `bytes` / `string`，默认自动选第一个，也可以用 `varyIndex` 指定；其他参数用类型默认值（uint 取 1 以触发非零写入）；
 - **边界**：采样密度不足时 `certified: false`；认证只覆盖 `support` 区间，超出标 `extrapolated`；
