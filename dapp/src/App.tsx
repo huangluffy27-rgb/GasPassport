@@ -183,7 +183,7 @@ function Overview({ setTab }: { setTab: (t: Tab) => void }) {
         </p>
         <div className="why">
           {[
-            ["部署前 / CI 审计", "合约还没上链，调不了", "给定函数与输入族，部署前产出上限"],
+            ["部署前 / CI 审计", "函数还没部署，无法逐调用估算", "state override 在未部署字节码上跑函数，按输入族出预算"],
             ["批量 / 代付 / AA", "逐笔模拟，延迟叠加", "一次认证，运行时查表 0 次 RPC"],
             ["输入在签名后才确定", "不知道参数，估不了", "按输入规模分桶，每桶一个上限"],
             ["状态漂移与并发", "只反映当前状态", "分布上的覆盖保证，不是单点估值"],
@@ -411,7 +411,7 @@ function AlignPanel({
       <div className="panel-head">
         <div>
           <h2>页对齐实测</h2>
-          <p className="muted">散列映射 vs packed 追加记录。可以先用状态覆盖模拟，再连接钱包真实验证。</p>
+          <p className="muted">散列映射 vs packed 追加记录。合约未部署也能先算函数 gas：状态覆盖把运行时字节码挂到测试网地址上模拟；也可以连钱包真实验证。</p>
         </div>
         <div className="seg">
           {[8, 16, 32, 64].map((x) => (

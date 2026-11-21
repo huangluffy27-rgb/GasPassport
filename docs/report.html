@@ -34,7 +34,7 @@
 <body>
 <div class="wrap">
   <h1>GasPassport 报告</h1>
-  <p class="sub">Monad 合约函数的 gas limit 体检 · 生成于 2026-11-21 05:39:25 UTC · 1,536 条测试网原生采样</p>
+  <p class="sub">Monad 合约函数的 gas limit 体检 · 生成于 2026-11-21 06:21:16 UTC · 1,536 条测试网原生采样</p>
 
   <div class="cards">
     <div class="card">
@@ -59,7 +59,7 @@
   <table>
     <thead><tr><th>场景</th><th>每次调用 eth_estimateGas</th><th>GasPassport 预算认证表</th></tr></thead>
     <tbody>
-      <tr><td>部署前 / CI 审计</td><td>合约还没上链，调不了</td><td>给定函数与输入族，部署前产出上限</td></tr>
+      <tr><td>部署前 / CI 审计</td><td>函数还没部署，无法逐调用估算</td><td>state override 在未部署字节码上跑函数，按输入族出预算</td></tr>
       <tr><td>批量 / 代付 / AA</td><td>要逐笔模拟，延迟叠加</td><td>一次认证，运行时查表 0 次 RPC</td></tr>
       <tr><td>输入在签名后才确定</td><td>不知道参数，估不了</td><td>按输入规模分桶，每桶一个上限</td></tr>
       <tr><td>状态漂移与并发</td><td>只反映当前状态</td><td>分布上的覆盖保证，不是单点估值</td></tr>
