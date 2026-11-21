@@ -114,7 +114,7 @@ function Header({ tab, setTab, wallet }: { tab: Tab; setTab: (t: Tab) => void; w
   return (
     <header className="header">
       <div className="brand">
-        <div className="mark">CG</div>
+        <div className="mark">GP</div>
         <div>
           <div className="name">GasPassport</div>
           <div className="tag">Monad gas 预算护照</div>
