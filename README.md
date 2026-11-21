@@ -145,17 +145,19 @@ node dist/index.js
 contracts/
 ├── src/PageWriter.sol      # 同页连续写 vs 跨页散布写
 ├── src/BatchAirdrop.sol    # 批量空投，散列余额槽
-├── src/Chaos.sol           # uniform / IET / logistic 三种采样器
-├── test/ChaosGas.t.sol     # 本地 campaign，输出 CSV
+├── src/AlignedAirdrop.sol  # 页对齐版本：packed Entry[] 追加记录
+├── test/ChaosGas.t.sol     # 页成本对照，输出 page_cost.csv
 └── reports/                # 测试网采样、页成本、校准数据
 app/
 ├── src/analyze.ts          # 分位数、收敛、页成本
 ├── src/conformal.ts        # 条件共形预测 + EVT 外推
+├── src/advanced.ts         # CV+、自动阈值、顺序停止、布局建议
 ├── src/report.ts           # 自包含 HTML 报告
 └── src/index.ts            # CLI
 scripts/
 ├── sample_testnet.mjs      # 测试网原生采样（state override）
 ├── measure_monad_page_cost.ps1
+├── measure_aligned.mjs     # 页对齐 vs 散列映射对比
 └── calibrate_receipts.mjs  # 真实交易校准
 ```
 

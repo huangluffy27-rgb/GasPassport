@@ -116,10 +116,6 @@ export function readAligned(dir: string): AlignedRow[] {
   }));
 }
 
-export function readAirdropSamples(dir: string): Sample[] {
-  return readSamples(dir).filter((s) => s.target === "BatchAirdrop");
-}
-
 export function readPageCost(dir: string): PageRow[] {
   const rows = parseCsv(readFileSync(join(dir, "page_cost.csv"), "utf8"));
   return rows.map((cols) => ({

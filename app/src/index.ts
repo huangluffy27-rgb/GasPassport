@@ -6,7 +6,6 @@ import { fileURLToPath } from "node:url";
 import {
   buildAirdropInsight,
   buildInsight,
-  readAirdropSamples,
   readPageCost,
   readSamples,
   readCalibration,

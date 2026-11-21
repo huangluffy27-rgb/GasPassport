@@ -14,6 +14,8 @@ coverage/
 broadcast/
 # 依赖本地安装，不入库；新克隆后执行 forge install foundry-rs/forge-std
 lib/
+# 本地生成，发布版在 docs/index.html
+contracts/reports/report.html
 
 # ===== 环境变量与密钥 =====
 .env
