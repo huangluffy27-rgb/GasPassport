@@ -4,7 +4,7 @@
 // 部署：node scripts/prebudget_api.mjs --deploy out/X.json --args 0x
 import { readFileSync } from "node:fs";
 import http from "node:http";
-import { deployBudget, functionBudget } from "../lib/budget.mjs";
+import { deployBudget, functionBudget } from "./budget_core.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
 
