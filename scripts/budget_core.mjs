@@ -1,5 +1,7 @@
 // GasPassport 预算核心：部署预算 + 函数预算（state override，不发交易）。
 // 供本地 API 与 CLI 共用；只依赖 viem。
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { encodeFunctionData, keccak256, concat, toHex, stringToHex } from "viem";
 
 const DEFAULT_RPC = "https://testnet-rpc.monad.xyz";
@@ -67,8 +69,49 @@ export async function deployBudget({ bytecode, constructorArgs = "0x" }, { rpcUr
   };
 }
 
-const cache = new Map();
+const CACHE_FILE = process.env.GASPASSPORT_CACHE_FILE ?? resolve(process.cwd(), ".local", "api-cache.json");
 const CACHE_TTL_MS = 5 * 60 * 1000;
+
+function loadCache() {
+  try {
+    return new Map(Object.entries(JSON.parse(readFileSync(CACHE_FILE, "utf8"))));
+  } catch {
+    return new Map();
+  }
+}
+
+const cache = loadCache();
+
+function saveCache() {
+  mkdirSync(dirname(CACHE_FILE), { recursive: true });
+  writeFileSync(CACHE_FILE, JSON.stringify(Object.fromEntries(cache)));
+}
+
+const isVaryingType = (type) => type === "address[]" || type === "bytes" || type === "string" || /^u?int\d*$/.test(type);
+
+function pickVarying(inputs, varyIndex) {
+  if (varyIndex !== undefined && varyIndex !== null) {
+    const input = inputs[Number(varyIndex)];
+    if (!input || !isVaryingType(input.type)) throw new Error(`varyIndex=${varyIndex} 的参数类型不支持`);
+    return { index: Number(varyIndex), type: input.type };
+  }
+  const index = inputs.findIndex((i) => isVaryingType(i.type));
+  if (index < 0) throw new Error("找不到可变的 address[] / uint / bytes / string 参数");
+  return { index, type: inputs[index].type };
+}
+
+function valueFor(type, n) {
+  if (type === "address[]") {
+    return Array.from(
+      { length: n },
+      (_, i) => `0x${keccak256(concat([stringToHex("prebudget"), toHex(BigInt(i), { size: 32 })])).slice(-40)}`,
+    );
+  }
+  if (type === "bytes") return `0x${"11".repeat(n)}`;
+  if (type === "string") return "a".repeat(n);
+  if (/^u?int\d*$/.test(type)) return BigInt(n);
+  throw new Error(`不支持的参数类型 ${type}`);
+}
 
 /** 拆笔：给定总量与每人成本，按单笔 cap 输出笔数与总预算 */
 export function batchPlan({ totalUsers, perUserGas, txGasCap = 30_000_000, txOverhead = 21_000 }) {
@@ -91,27 +134,23 @@ export function batchPlan({ totalUsers, perUserGas, txGasCap = 30_000_000, txOve
 }
 
 export async function functionBudget(
-  { artifact, functionName, min = 1, max = 64, step = 1, samplesPerInput = 1, alpha = 0.01 },
+  { artifact, functionName, min = 1, max = 64, step = 1, samplesPerInput = 1, alpha = 0.01, varyIndex },
   { rpcUrl = DEFAULT_RPC, cache: useCache = true } = {},
 ) {
   const { abi, deployed } = normalizeArtifact(artifact);
   const codeHash = keccak256(deployed);
-  const cacheKey = JSON.stringify({ functionName, min, max, step, samplesPerInput, alpha, codeHash });
+  const cacheKey = JSON.stringify({ functionName, min, max, step, samplesPerInput, alpha, varyIndex, codeHash });
   const hit = cache.get(cacheKey);
   if (useCache && hit && Date.now() - hit.at < CACHE_TTL_MS) {
     return { ...hit.value, cached: true };
   }
   const fn = abi.find((x) => x.type === "function" && x.name === functionName);
   if (!fn) throw new Error(`找不到函数 ${functionName}`);
-  const arrayIndex = fn.inputs.findIndex((i) => i.type === "address[]");
-  if (arrayIndex < 0) throw new Error("当前实现只支持长度可变的 address[] 参数");
+  const varying = pickVarying(fn.inputs, varyIndex);
 
   const samples = [];
   for (let n = min; n <= max; n += step) {
-    const users = Array.from({ length: n }, (_, i) =>
-      `0x${keccak256(concat([stringToHex("prebudget"), toHex(BigInt(i), { size: 32 })])).slice(-40)}`,
-    );
-    const args = fn.inputs.map((input, i) => (i === arrayIndex ? users : defaultArg(input.type)));
+    const args = fn.inputs.map((input, i) => (i === varying.index ? valueFor(varying.type, n) : defaultArg(input.type)));
     const data = encodeFunctionData({ abi, functionName, args });
     for (let r = 0; r < samplesPerInput; r++) {
       const gas = Number(
@@ -152,8 +191,10 @@ export async function functionBudget(
         : "认证仅覆盖 support 区间。",
     samples: samples.length,
     codeHash,
+    varying,
     buckets,
   };
   cache.set(cacheKey, { at: Date.now(), value: result });
+  saveCache();
   return result;
 }
