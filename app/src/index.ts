@@ -9,6 +9,7 @@ import {
   readAirdropSamples,
   readPageCost,
   readSamples,
+  readTestnetPageCost,
   summarize,
 } from "./analyze.js";
 import { renderReport } from "./report.js";
@@ -27,9 +28,10 @@ function main(): void {
 
   const samples = readSamples(dir);
   const pages = readPageCost(dir);
+  const testnet = readTestnetPageCost(dir);
   const samplers = [...new Set(samples.map((s) => s.sampler))];
   const stats = samplers.map((s) => summarize(s, samples));
-  const insight = buildInsight(pages, stats);
+  const insight = buildInsight(pages, testnet, stats);
 
   const airSamples = readAirdropSamples(dir);
   const airSamplers = [...new Set(airSamples.map((s) => s.sampler))];
@@ -37,7 +39,7 @@ function main(): void {
   const airInsight = buildAirdropInsight(airSamples, airStats);
 
   const now = new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC";
-  const html = renderReport(stats, pages, insight, airStats, airInsight, now);
+  const html = renderReport(stats, pages, testnet, insight, airStats, airInsight, now);
   const outPath = resolve(dir, "report.html");
   writeFileSync(outPath, html, "utf8");
 

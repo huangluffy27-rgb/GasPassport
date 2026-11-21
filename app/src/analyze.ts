@@ -31,8 +31,12 @@ export type SamplerStats = {
   convergence: { n: number; error: number }[];
 };
 
-/** Monad MIP-8：每页首访 8,100 gas，同页后续 100 gas；相对同页基线多一页多付 8,000。 */
-export const PAGE_EXTRA = 8_000;
+/**
+ * Monad 测试网实测：每次多访问一页，eth_estimateGas 增加约 10,975 gas。
+ * 测量方式：状态覆盖 + eth_estimateGas，不发交易、不消耗测试币。
+ * 2026-11-21 实测：n=8/16/32/64 时分别为 76,887 / 164,683 / 340,274 / 691,455。
+ */
+export const PAGE_EXTRA = 10_975;
 
 function parseCsv(text: string): string[][] {
   return text
@@ -45,13 +49,30 @@ function parseCsv(text: string): string[][] {
 
 export function readSamples(dir: string, file = "gas_samples.csv"): Sample[] {
   const rows = parseCsv(readFileSync(join(dir, file), "utf8"));
+  return rows.map((cols) => {
+    const gasEvm = Number(cols[3]);
+    const pages = Number(cols[4]);
+    return {
+      sampler: cols[0],
+      iter: Number(cols[1]),
+      count: Number(cols[2]),
+      gasEvm,
+      pages,
+      // 用测试网实测的每页增量重算，不再信任 campaign 里的旧模型值
+      gasMonad: gasEvm + (pages - 1) * PAGE_EXTRA,
+    };
+  });
+}
+
+export type TestnetRow = { count: number; contiguous: number; scattered: number; diff: number };
+
+export function readTestnetPageCost(dir: string): TestnetRow[] {
+  const rows = parseCsv(readFileSync(join(dir, "monad_testnet_page_cost.csv"), "utf8"));
   return rows.map((cols) => ({
-    sampler: cols[0],
-    iter: Number(cols[1]),
-    count: Number(cols[2]),
-    gasEvm: Number(cols[3]),
-    pages: Number(cols[4]),
-    gasMonad: Number(cols[5]),
+    count: Number(cols[0]),
+    contiguous: Number(cols[1]),
+    scattered: Number(cols[2]),
+    diff: Number(cols[3]),
   }));
 }
 
@@ -131,18 +152,19 @@ export type Insight = {
   coverage: number;
 };
 
-export function buildInsight(pages: PageRow[], stats: SamplerStats[]): Insight {
-  const worstCase = pages.reduce((a, b) => (b.count > a.count ? b : a));
-  const contiguousModeled = worstCase.gasContiguous + (worstCase.pagesContiguous - 1) * PAGE_EXTRA;
-  const scatteredModeled = worstCase.gasScattered + (worstCase.pagesScattered - 1) * PAGE_EXTRA;
-  const pageOverhead = scatteredModeled - contiguousModeled;
+export function buildInsight(pages: PageRow[], testnet: TestnetRow[], stats: SamplerStats[]): Insight {
+  const worst = testnet.reduce((a, b) => (b.count > a.count ? b : a));
+  const worstCase = pages.find((p) => p.count === worst.count) ?? pages[pages.length - 1];
+  const contiguousModeled = worst.contiguous;
+  const scatteredModeled = worst.scattered;
+  const pageOverhead = worst.diff;
 
   const maxGas = Math.max(...stats.map((s) => s.max));
   const avgGas = mean(stats.map((s) => s.mean));
   const n = stats[0]?.n ?? 1;
 
   return {
-    countMax: worstCase.count,
+    countMax: worst.count,
     worstCase,
     contiguousModeled,
     scatteredModeled,

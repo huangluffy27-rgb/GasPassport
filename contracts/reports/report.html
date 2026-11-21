@@ -34,118 +34,113 @@
 <body>
 <div class="wrap">
   <h1>ChaosGas 报告</h1>
-  <p class="sub">Monad 合约函数的 gas limit 体检 · 生成于 2026-11-21 04:09:16 UTC · 样本 512 / 采样器</p>
+  <p class="sub">Monad 合约函数的 gas limit 体检 · 生成于 2026-11-21 04:14:11 UTC · 样本 512 / 采样器</p>
 
   <div class="cards">
     <div class="card">
       <div class="k">推荐 gas limit</div>
-      <div class="v">2,076,475</div>
+      <div class="v">2,273,271</div>
       <div class="n">经验覆盖 99.8%，留 5% 余量</div>
     </div>
     <div class="card">
       <div class="k">3x 固定 buffer</div>
-      <div class="v">3,119,766</div>
-      <div class="n">相对推荐值多付 50.2%</div>
+      <div class="v">3,406,191</div>
+      <div class="n">相对推荐值多付 49.8%</div>
     </div>
     <div class="card">
       <div class="k">跨页额外成本</div>
-      <div class="v">+509,610</div>
-      <div class="n">64 次写入，占同页基线 34.7%</div>
+      <div class="v">+691,455</div>
+      <div class="n">64 次写入，占同页基线 59.4%</div>
     </div>
   </div>
 
-  <h2>页成本：同一批写入，布局决定账单</h2>
+  <h2>页成本：同一批写入，布局决定账单（Monad 测试网实测）</h2>
   <svg viewBox="0 0 680 280" class="chart" role="img" aria-label="页成本对比">
     <line x1="56" y1="236" x2="656" y2="236" stroke="#e2e8f0"/>
       <text x="48" y="240" text-anchor="end" class="axis">0k</text><line x1="56" y1="182" x2="656" y2="182" stroke="#e2e8f0"/>
-      <text x="48" y="186" text-anchor="end" class="axis">554k</text><line x1="56" y1="128" x2="656" y2="128" stroke="#e2e8f0"/>
-      <text x="48" y="132" text-anchor="end" class="axis">1,107k</text><line x1="56" y1="74" x2="656" y2="74" stroke="#e2e8f0"/>
-      <text x="48" y="78" text-anchor="end" class="axis">1,661k</text><line x1="56" y1="20" x2="656" y2="20" stroke="#e2e8f0"/>
-      <text x="48" y="24" text-anchor="end" class="axis">2,215k</text><rect x="87" y="229.5406931868543" width="26" height="6.459306813145702" fill="#94a3b8" rx="2"/><rect x="119" y="229.53425679748815" width="26" height="6.465743202511845" fill="#2563eb" rx="2"/><text x="116" y="260" text-anchor="middle" class="axis">1</text><rect x="207" y="214.35178949322645" width="26" height="21.64821050677355" fill="#94a3b8" rx="2"/><rect x="239" y="208.82410128030693" width="26" height="27.175898719693066" fill="#2563eb" rx="2"/><text x="236" y="260" text-anchor="middle" class="axis">8</text><rect x="327" y="196.9930424147946" width="26" height="39.00695758520541" fill="#94a3b8" rx="2"/><rect x="359" y="185.15535211781412" width="26" height="50.84464788218588" fill="#2563eb" rx="2"/><text x="356" y="260" text-anchor="middle" class="axis">16</text><rect x="447" y="162.2755482579309" width="26" height="73.7244517420691" fill="#94a3b8" rx="2"/><rect x="479" y="137.81785379282846" width="26" height="98.18214620717154" fill="#2563eb" rx="2"/><text x="476" y="260" text-anchor="middle" class="axis">32</text><rect x="567" y="92.84055994420353" width="26" height="143.15944005579647" fill="#94a3b8" rx="2"/><rect x="599" y="43.14285714285717" width="26" height="192.85714285714283" fill="#2563eb" rx="2"/><text x="596" y="260" text-anchor="middle" class="axis">64</text>
+      <text x="48" y="186" text-anchor="end" class="axis">519k</text><line x1="56" y1="128" x2="656" y2="128" stroke="#e2e8f0"/>
+      <text x="48" y="132" text-anchor="end" class="axis">1,039k</text><line x1="56" y1="74" x2="656" y2="74" stroke="#e2e8f0"/>
+      <text x="48" y="78" text-anchor="end" class="axis">1,558k</text><line x1="56" y1="20" x2="656" y2="20" stroke="#e2e8f0"/>
+      <text x="48" y="24" text-anchor="end" class="axis">2,078k</text><rect x="87" y="228.98286419646612" width="26" height="7.017135803533876" fill="#94a3b8" rx="2"/><rect x="119" y="228.9758991426323" width="26" height="7.024100857367699" fill="#2563eb" rx="2"/><text x="116" y="260" text-anchor="middle" class="axis">1</text><rect x="207" y="216.24222139399643" width="26" height="19.75777860600357" fill="#94a3b8" rx="2"/><rect x="239" y="208.24935431756333" width="26" height="27.75064568243667" fill="#2563eb" rx="2"/><text x="236" y="260" text-anchor="middle" class="axis">8</text><rect x="327" y="201.78245776690133" width="26" height="34.21754223309867" fill="#94a3b8" rx="2"/><rect x="359" y="184.66266731145072" width="26" height="51.33733268854928" fill="#2563eb" rx="2"/><text x="356" y="260" text-anchor="middle" class="axis">16</text><rect x="447" y="172.86293051271113" width="26" height="63.13706948728887" fill="#94a3b8" rx="2"/><rect x="479" y="137.48939725525287" width="26" height="98.51060274474713" fill="#2563eb" rx="2"/><text x="476" y="260" text-anchor="middle" class="axis">32</text><rect x="567" y="115.02377204830337" width="26" height="120.97622795169663" fill="#94a3b8" rx="2"/><rect x="599" y="43.14285714285717" width="26" height="192.85714285714283" fill="#2563eb" rx="2"/><text x="596" y="260" text-anchor="middle" class="axis">64</text>
     <text x="56" y="278" class="axis">写入次数（同页 vs 跨页，单位：千 gas）</text>
   </svg>
   <table>
-    <thead><tr><th>写入次数</th><th>同页页数</th><th>同页 gas（建模）</th><th>跨页页数</th><th>跨页 gas（建模）</th><th>差额</th></tr></thead>
+    <thead><tr><th>写入次数</th><th>同页 estimateGas</th><th>跨页 estimateGas</th><th>差额</th><th>每页增量</th></tr></thead>
     <tbody><tr>
         <td>1</td>
-        <td>1</td>
-        <td>66,235</td>
-        <td>1</td>
-        <td>66,301</td>
-        <td>+66</td>
+        <td>67,501</td>
+        <td>67,568</td>
+        <td>+67</td>
+        <td>—</td>
       </tr><tr>
         <td>8</td>
-        <td>1</td>
-        <td>221,985</td>
-        <td>8</td>
-        <td>278,667</td>
-        <td>+56,682</td>
+        <td>190,059</td>
+        <td>266,946</td>
+        <td>+76,887</td>
+        <td>10,984</td>
       </tr><tr>
         <td>16</td>
-        <td>1</td>
-        <td>399,985</td>
-        <td>16</td>
-        <td>521,371</td>
-        <td>+121,386</td>
+        <td>329,154</td>
+        <td>493,837</td>
+        <td>+164,683</td>
+        <td>10,979</td>
       </tr><tr>
         <td>32</td>
-        <td>1</td>
-        <td>755,985</td>
-        <td>32</td>
-        <td>1,006,779</td>
-        <td>+250,794</td>
+        <td>607,344</td>
+        <td>947,618</td>
+        <td>+340,274</td>
+        <td>10,977</td>
       </tr><tr>
         <td>64</td>
-        <td>1</td>
-        <td>1,467,985</td>
-        <td>64</td>
-        <td>1,977,595</td>
-        <td>+509,610</td>
+        <td>1,163,725</td>
+        <td>1,855,180</td>
+        <td>+691,455</td>
+        <td>10,975</td>
       </tr></tbody>
   </table>
-  <p class="note">口径：EVM 执行 gas 由 Foundry 实测；Monad 页成本按 MIP-8 参数建模（每页首访 8,100 gas、同页后续 100 gas），相对同页基线每多一页加 8,000。这不是链上实测值，正式提交前应在 Monad 测试网复核。</p>
+  <p class="note">口径：这一节全部来自 Monad 测试网 <code>eth_estimateGas</code> 实测。测量方式是把 PageWriter 的运行时字节码通过状态覆盖放到测试网地址上，模拟调用，不发交易、不需要测试币。n=8/16/32/64 的每页增量稳定在约 10,975 gas，比我们最初按文档估的 8,000 高约 37%。</p>
 
   <h2>采样收敛：IET 比均匀随机更快贴近真值</h2>
   <p class="sub">灰=同页，蓝=跨页；线色：<span style="color:#dc2626">uniform</span> / <span style="color:#2563eb">iet</span> / <span style="color:#059669">logistic</span></p>
   <svg viewBox="0 0 680 280" class="chart" role="img" aria-label="收敛曲线">
     <line x1="56" y1="236" x2="656" y2="236" stroke="#e2e8f0"/>
       <text x="48" y="240" text-anchor="end" class="axis">0.0%</text><line x1="56" y1="128" x2="656" y2="128" stroke="#e2e8f0"/>
-      <text x="48" y="132" text-anchor="end" class="axis">9.7%</text><line x1="56" y1="20" x2="656" y2="20" stroke="#e2e8f0"/>
-      <text x="48" y="24" text-anchor="end" class="axis">19.5%</text><path d="M 322.7 48.2 L 389.3 216.2 L 456.0 230.5 L 522.7 232.9 L 589.3 199.1 L 656.0 236.0" fill="none" stroke="#dc2626" stroke-width="2"/><path d="M 322.7 216.4 L 389.3 230.8 L 456.0 227.8 L 522.7 235.2 L 589.3 234.1 L 656.0 236.0" fill="none" stroke="#2563eb" stroke-width="2"/><path d="M 322.7 196.8 L 389.3 215.0 L 456.0 202.6 L 522.7 231.0 L 589.3 235.7 L 656.0 236.0" fill="none" stroke="#059669" stroke-width="2"/><text x="322.66666666666663" y="260" text-anchor="middle" class="axis">16</text><text x="389.33333333333337" y="260" text-anchor="middle" class="axis">32</text><text x="456" y="260" text-anchor="middle" class="axis">64</text><text x="522.6666666666667" y="260" text-anchor="middle" class="axis">128</text><text x="589.3333333333333" y="260" text-anchor="middle" class="axis">256</text><text x="656" y="260" text-anchor="middle" class="axis">512</text>
+      <text x="48" y="132" text-anchor="end" class="axis">9.8%</text><line x1="56" y1="20" x2="656" y2="20" stroke="#e2e8f0"/>
+      <text x="48" y="24" text-anchor="end" class="axis">19.6%</text><path d="M 322.7 48.2 L 389.3 216.2 L 456.0 230.5 L 522.7 232.9 L 589.3 199.1 L 656.0 236.0" fill="none" stroke="#dc2626" stroke-width="2"/><path d="M 322.7 216.4 L 389.3 230.8 L 456.0 227.8 L 522.7 235.2 L 589.3 234.1 L 656.0 236.0" fill="none" stroke="#2563eb" stroke-width="2"/><path d="M 322.7 196.8 L 389.3 215.0 L 456.0 202.6 L 522.7 231.0 L 589.3 235.7 L 656.0 236.0" fill="none" stroke="#059669" stroke-width="2"/><text x="322.66666666666663" y="260" text-anchor="middle" class="axis">16</text><text x="389.33333333333337" y="260" text-anchor="middle" class="axis">32</text><text x="456" y="260" text-anchor="middle" class="axis">64</text><text x="522.6666666666667" y="260" text-anchor="middle" class="axis">128</text><text x="589.3333333333333" y="260" text-anchor="middle" class="axis">256</text><text x="656" y="260" text-anchor="middle" class="axis">512</text>
     <text x="56" y="278" class="axis">样本数 N（对数轴）· 相对全样本均值的误差</text>
   </svg>
-  <p class="sub">N=16 时，IET 的相对误差是 1.8%，均匀随机是 16.9%。</p>
+  <p class="sub">N=16 时，IET 的相对误差是 1.8%，均匀随机是 17.0%。</p>
   <table>
     <thead><tr><th>采样器</th><th>N</th><th>均值</th><th>p50</th><th>p95</th><th>p99</th><th>max</th><th>均值 95% CI</th><th>N=64 误差</th></tr></thead>
     <tbody><tr>
         <td>uniform</td>
         <td>512</td>
-        <td>1,032,910</td>
-        <td>1,037,117</td>
-        <td>1,886,581</td>
-        <td>1,977,595</td>
-        <td>1,977,595</td>
-        <td>48,788</td>
+        <td>1,127,697</td>
+        <td>1,132,317</td>
+        <td>2,065,081</td>
+        <td>2,165,020</td>
+        <td>2,165,020</td>
+        <td>53,573</td>
         <td>0.5%</td>
       </tr><tr>
         <td>iet</td>
         <td>512</td>
-        <td>1,021,000</td>
-        <td>1,021,948</td>
-        <td>1,886,581</td>
-        <td>1,977,595</td>
-        <td>1,977,595</td>
-        <td>48,592</td>
+        <td>1,114,619</td>
+        <td>1,115,661</td>
+        <td>2,065,081</td>
+        <td>2,165,020</td>
+        <td>2,165,020</td>
+        <td>53,357</td>
         <td>0.7%</td>
       </tr><tr>
         <td>logistic</td>
         <td>512</td>
-        <td>1,065,855</td>
-        <td>1,097,793</td>
-        <td>1,977,595</td>
-        <td>1,977,595</td>
-        <td>1,977,595</td>
-        <td>57,985</td>
+        <td>1,163,873</td>
+        <td>1,198,943</td>
+        <td>2,165,020</td>
+        <td>2,165,020</td>
+        <td>2,165,020</td>
+        <td>63,671</td>
         <td>3.0%</td>
       </tr></tbody>
   </table>
@@ -154,25 +149,25 @@
   <div class="cards">
     <div class="card">
       <div class="k">推荐 gas limit</div>
-      <div class="v">1,079,612</div>
+      <div class="v">1,176,448</div>
       <div class="n">经验覆盖 99.6%，留 5% 余量</div>
     </div>
     <div class="card">
       <div class="k">3x 固定 buffer</div>
-      <div class="v">1,614,384</div>
-      <div class="n">相对推荐值多付 49.5%</div>
+      <div class="v">1,754,558</div>
+      <div class="n">相对推荐值多付 49.1%</div>
     </div>
     <div class="card">
       <div class="k">最坏页数</div>
       <div class="v">32</div>
-      <div class="n">跨页额外成本 +248,000</div>
+      <div class="n">跨页额外成本 +340,225</div>
     </div>
   </div>
   <svg viewBox="0 0 680 280" class="chart" role="img" aria-label="收敛曲线">
     <line x1="56" y1="236" x2="656" y2="236" stroke="#e2e8f0"/>
       <text x="48" y="240" text-anchor="end" class="axis">0.0%</text><line x1="56" y1="128" x2="656" y2="128" stroke="#e2e8f0"/>
       <text x="48" y="132" text-anchor="end" class="axis">5.6%</text><line x1="56" y1="20" x2="656" y2="20" stroke="#e2e8f0"/>
-      <text x="48" y="24" text-anchor="end" class="axis">11.1%</text><path d="M 356.0 180.6 L 431.0 124.3 L 506.0 189.7 L 581.0 226.4 L 656.0 236.0" fill="none" stroke="#dc2626" stroke-width="2"/><path d="M 356.0 206.1 L 431.0 228.0 L 506.0 223.4 L 581.0 234.9 L 656.0 236.0" fill="none" stroke="#2563eb" stroke-width="2"/><path d="M 356.0 69.8 L 431.0 48.2 L 506.0 142.1 L 581.0 144.9 L 656.0 236.0" fill="none" stroke="#059669" stroke-width="2"/><text x="356" y="260" text-anchor="middle" class="axis">16</text><text x="431" y="260" text-anchor="middle" class="axis">32</text><text x="506" y="260" text-anchor="middle" class="axis">64</text><text x="581" y="260" text-anchor="middle" class="axis">128</text><text x="656" y="260" text-anchor="middle" class="axis">256</text>
+      <text x="48" y="24" text-anchor="end" class="axis">11.2%</text><path d="M 356.0 180.2 L 431.0 124.0 L 506.0 190.2 L 581.0 226.1 L 656.0 236.0" fill="none" stroke="#dc2626" stroke-width="2"/><path d="M 356.0 206.7 L 431.0 228.5 L 506.0 223.9 L 581.0 235.2 L 656.0 236.0" fill="none" stroke="#2563eb" stroke-width="2"/><path d="M 356.0 69.7 L 431.0 48.2 L 506.0 142.0 L 581.0 145.5 L 656.0 236.0" fill="none" stroke="#059669" stroke-width="2"/><text x="356" y="260" text-anchor="middle" class="axis">16</text><text x="431" y="260" text-anchor="middle" class="axis">32</text><text x="506" y="260" text-anchor="middle" class="axis">64</text><text x="581" y="260" text-anchor="middle" class="axis">128</text><text x="656" y="260" text-anchor="middle" class="axis">256</text>
     <text x="56" y="278" class="axis">样本数 N（对数轴）· 相对全样本均值的误差</text>
   </svg>
   <table>
@@ -180,46 +175,46 @@
     <tbody><tr>
         <td>uniform</td>
         <td>256</td>
-        <td>539,892</td>
-        <td>544,730</td>
-        <td>979,424</td>
-        <td>1,009,848</td>
-        <td>1,013,785</td>
-        <td>36,778</td>
+        <td>587,144</td>
+        <td>592,330</td>
+        <td>1,068,674</td>
+        <td>1,102,073</td>
+        <td>1,106,010</td>
+        <td>40,293</td>
         <td>2.4%</td>
       </tr><tr>
         <td>iet</td>
         <td>256</td>
-        <td>530,352</td>
-        <td>531,455</td>
-        <td>985,230</td>
-        <td>1,018,644</td>
-        <td>1,020,638</td>
-        <td>35,587</td>
+        <td>576,337</td>
+        <td>577,568</td>
+        <td>1,074,480</td>
+        <td>1,110,869</td>
+        <td>1,112,863</td>
+        <td>38,964</td>
         <td>0.6%</td>
       </tr><tr>
         <td>logistic</td>
         <td>256</td>
-        <td>544,139</td>
-        <td>551,989</td>
-        <td>1,025,748</td>
-        <td>1,027,976</td>
-        <td>1,028,201</td>
-        <td>43,156</td>
-        <td>4.8%</td>
+        <td>591,077</td>
+        <td>599,589</td>
+        <td>1,117,973</td>
+        <td>1,120,201</td>
+        <td>1,120,426</td>
+        <td>47,223</td>
+        <td>4.9%</td>
       </tr></tbody>
   </table>
   <p class="note">第二组目标的页数不是按公式推的，而是每次调用后用 <code>vm.record</code> / <code>vm.accesses</code> 读真实写入集合，再按 128 槽一页去重统计。每个地址的余额槽由 keccak 散列决定，基本一槽一页，所以空投人数直接放大页成本。</p>
 
   <h2>结论</h2>
   <div class="note ok">
-    <strong>给这个函数的建议：</strong>gas limit 设为 <code>2,076,475</code>。
-    朴素的 3x 均值 buffer（3,119,766）会多付 50.2%；
+    <strong>给这个函数的建议：</strong>gas limit 设为 <code>2,273,271</code>。
+    朴素的 3x 均值 buffer（3,406,191）会多付 49.8%；
     而按 p99.9 附近取值，失败概率低于 0.2%。
     在 Monad 上 gas 按 limit 扣费且不退，这部分就是纯损耗。
   </div>
   <p class="note">最坏情况出现在 count=64：跨页写入 64 页，对比同页 1 页。
-  峰值 gas 由输入结构（写入次数）和存储布局（页内/跨页）共同决定，均匀采样不保证碰到，所以先做最坏情况搜索再谈分布。</p>
+  峰值 gas 由输入结构（写入次数）和存储布局（页内/跨页）共同决定，均匀采样不保证碰到，所以先做最坏情况搜索再谈分布。以下分布与推荐值统一按测试网实测的每页 10,975 gas 折算。</p>
 
   <footer>ChaosGas · 确定性混沌 + 区间交换变换 + 蒙特卡洛 + 大数定律 · 输入可复现</footer>
 </div>

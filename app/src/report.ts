@@ -1,10 +1,10 @@
-import type { AirdropInsight, Insight, PageRow, SamplerStats } from "./analyze.js";
+import type { AirdropInsight, Insight, PageRow, SamplerStats, TestnetRow } from "./analyze.js";
 import { PAGE_EXTRA } from "./analyze.js";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 
-function barChart(rows: PageRow[]): string {
+function barChart(rows: TestnetRow[]): string {
   const width = 680;
   const height = 280;
   const padX = 56;
@@ -15,8 +15,8 @@ function barChart(rows: PageRow[]): string {
 
   const modeled = rows.map((r) => ({
     count: r.count,
-    contiguous: r.gasContiguous + (r.pagesContiguous - 1) * PAGE_EXTRA,
-    scattered: r.gasScattered + (r.pagesScattered - 1) * PAGE_EXTRA,
+    contiguous: r.contiguous,
+    scattered: r.scattered,
   }));
   const maxY = Math.max(...modeled.map((m) => Math.max(m.contiguous, m.scattered))) * 1.12;
   const scaleY = (v: number) => padTop + innerH - (v / maxY) * innerH;
@@ -95,6 +95,7 @@ function convergenceChart(stats: SamplerStats[]): string {
 export function renderReport(
   stats: SamplerStats[],
   pages: PageRow[],
+  testnet: TestnetRow[],
   insight: Insight,
   airStats: SamplerStats[],
   airInsight: AirdropInsight,
@@ -119,17 +120,15 @@ export function renderReport(
 
   const rows = statsRows(stats);
 
-  const pageRows = pages
+  const pageRows = testnet
     .map((r) => {
-      const contig = r.gasContiguous + (r.pagesContiguous - 1) * PAGE_EXTRA;
-      const scatter = r.gasScattered + (r.pagesScattered - 1) * PAGE_EXTRA;
+      const perPage = r.count > 1 ? Math.round(r.diff / (r.count - 1)) : 0;
       return `<tr>
         <td>${r.count}</td>
-        <td>${r.pagesContiguous}</td>
-        <td>${fmt(contig)}</td>
-        <td>${r.pagesScattered}</td>
-        <td>${fmt(scatter)}</td>
-        <td>+${fmt(scatter - contig)}</td>
+        <td>${fmt(r.contiguous)}</td>
+        <td>${fmt(r.scattered)}</td>
+        <td>+${fmt(r.diff)}</td>
+        <td>${perPage ? fmt(perPage) : "—"}</td>
       </tr>`;
     })
     .join("");
@@ -196,13 +195,13 @@ export function renderReport(
     </div>
   </div>
 
-  <h2>页成本：同一批写入，布局决定账单</h2>
-  ${barChart(pages)}
+  <h2>页成本：同一批写入，布局决定账单（Monad 测试网实测）</h2>
+  ${barChart(testnet)}
   <table>
-    <thead><tr><th>写入次数</th><th>同页页数</th><th>同页 gas（建模）</th><th>跨页页数</th><th>跨页 gas（建模）</th><th>差额</th></tr></thead>
+    <thead><tr><th>写入次数</th><th>同页 estimateGas</th><th>跨页 estimateGas</th><th>差额</th><th>每页增量</th></tr></thead>
     <tbody>${pageRows}</tbody>
   </table>
-  <p class="note">口径：EVM 执行 gas 由 Foundry 实测；Monad 页成本按 MIP-8 参数建模（每页首访 8,100 gas、同页后续 100 gas），相对同页基线每多一页加 8,000。这不是链上实测值，正式提交前应在 Monad 测试网复核。</p>
+  <p class="note">口径：这一节全部来自 Monad 测试网 <code>eth_estimateGas</code> 实测。测量方式是把 PageWriter 的运行时字节码通过状态覆盖放到测试网地址上，模拟调用，不发交易、不需要测试币。n=8/16/32/64 的每页增量稳定在约 10,975 gas，比我们最初按文档估的 8,000 高约 37%。</p>
 
   <h2>采样收敛：IET 比均匀随机更快贴近真值</h2>
   <p class="sub">灰=同页，蓝=跨页；线色：<span style="color:#dc2626">uniform</span> / <span style="color:#2563eb">iet</span> / <span style="color:#059669">logistic</span></p>
@@ -246,7 +245,7 @@ export function renderReport(
     在 Monad 上 gas 按 limit 扣费且不退，这部分就是纯损耗。
   </div>
   <p class="note">最坏情况出现在 count=${insight.countMax}：跨页写入 ${insight.worstCase.pagesScattered} 页，对比同页 ${insight.worstCase.pagesContiguous} 页。
-  峰值 gas 由输入结构（写入次数）和存储布局（页内/跨页）共同决定，均匀采样不保证碰到，所以先做最坏情况搜索再谈分布。</p>
+  峰值 gas 由输入结构（写入次数）和存储布局（页内/跨页）共同决定，均匀采样不保证碰到，所以先做最坏情况搜索再谈分布。以下分布与推荐值统一按测试网实测的每页 10,975 gas 折算。</p>
 
   <footer>ChaosGas · 确定性混沌 + 区间交换变换 + 蒙特卡洛 + 大数定律 · 输入可复现</footer>
 </div>
